@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Submit Your Order | Veyron Enterprises</title>
+    <meta
+      name="description"
+      content="Confirm your Veyron Enterprises order by providing contact details, delivery timing and payment preferences."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles/styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="navbar">
+        <a class="logo" href="index.html">
+          <img src="assets/logo.svg" alt="Veyron Enterprises logo placeholder" />
+          <span>Veyron Enterprises</span>
+        </a>
+        <nav class="nav-links">
+          <a href="index.html">Home</a>
+          <a href="equipment.html">Equipment Hire</a>
+          <a href="furniture.html">Furniture</a>
+          <a href="groceries.html">Groceries</a>
+        </nav>
+        <button class="cart-toggle" type="button" data-toggle-cart>
+          <span aria-hidden="true">🛒</span>
+          <span>Cart</span>
+          <span class="cart-count" data-cart-count>0</span>
+        </button>
+      </div>
+    </header>
+
+    <main>
+      <section class="page-hero">
+        <h1>Submit Your Order</h1>
+        <p>Review your cart, add your contact and delivery details, then place the order to email our team directly.</p>
+      </section>
+
+      <div class="order-layout" data-order-layout>
+        <div class="order-card" data-order-summary>
+          <h2>Order Summary</h2>
+          <p>Your selected items are listed below. Adjust quantities from the cart if you need to make changes.</p>
+          <table class="summary-table">
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Quantity</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody data-summary-rows></tbody>
+            <tfoot>
+              <tr>
+                <td colspan="2">Estimated Total</td>
+                <td data-summary-total>$0.00</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <div class="order-card" data-order-form>
+          <h2>Delivery & Contact Details</h2>
+          <p>Provide the details below so we can schedule delivery and send confirmation.</p>
+          <div class="alert error" data-order-alert></div>
+          <form id="order-details-form">
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="customerName">Full Name *</label>
+                <input type="text" id="customerName" name="customerName" placeholder="Your full name" required />
+              </div>
+              <div class="form-group">
+                <label for="customerPhone">Phone Number *</label>
+                <input type="tel" id="customerPhone" name="customerPhone" placeholder="e.g. +263 77 000 0000" required />
+              </div>
+              <div class="form-group">
+                <label for="customerEmail">Email</label>
+                <input type="email" id="customerEmail" name="customerEmail" placeholder="you@example.com" />
+              </div>
+              <div class="form-group">
+                <label for="deliveryAddress">Delivery Address *</label>
+                <textarea id="deliveryAddress" name="deliveryAddress" placeholder="Street, suburb, city" required></textarea>
+              </div>
+              <div class="form-group">
+                <label for="deliveryDate">Preferred Delivery Date *</label>
+                <input type="date" id="deliveryDate" name="deliveryDate" required />
+              </div>
+              <div class="form-group">
+                <label for="deliveryTime">Preferred Delivery Time *</label>
+                <input type="time" id="deliveryTime" name="deliveryTime" required />
+              </div>
+              <div class="form-group">
+                <label for="paymentMethod">Payment Method *</label>
+                <select id="paymentMethod" name="paymentMethod" required>
+                  <option value="">Select a payment method</option>
+                  <option value="Cash">Cash</option>
+                  <option value="Western Union">Western Union</option>
+                  <option value="World Remit">World Remit</option>
+                  <option value="EcoCash">EcoCash</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="deliveryNotes">Delivery Notes</label>
+                <textarea id="deliveryNotes" name="deliveryNotes" placeholder="Gate codes, special instructions or dietary notes"></textarea>
+              </div>
+            </div>
+            <div class="notice">
+              Clicking <strong>Place Order</strong> will open an email to <strong>hildamachando4@gmail.com</strong> containing your order summary.
+              Please review and send it to confirm your booking.
+            </div>
+            <button class="btn btn-primary" type="submit">Place Order</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="empty-state" data-empty-state hidden>
+        <h2>Your cart is empty</h2>
+        <p>Add items from the furniture or groceries pages before submitting your order.</p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="furniture.html">Browse Furniture</a>
+          <a class="btn btn-outline" href="groceries.html">Browse Groceries</a>
+        </div>
+      </div>
+    </main>
+
+    <div class="cart-drawer" data-cart-drawer aria-hidden="true">
+      <div class="cart-panel" role="dialog" aria-modal="true" aria-labelledby="cart-title">
+        <header>
+          <h2 id="cart-title">Your Cart</h2>
+          <button class="cart-close" type="button" data-close-cart>Close</button>
+        </header>
+        <div class="cart-items" data-cart-items></div>
+        <div class="cart-footer">
+          <div class="summary-row">
+            <span>Total</span>
+            <span data-cart-total>$0.00</span>
+          </div>
+          <button class="btn btn-primary checkout-btn" type="button" data-submit-order>Submit Order</button>
+        </div>
+      </div>
+    </div>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        <div class="footer-top">
+          <div class="footer-brand">
+            <img src="assets/logo.svg" alt="Veyron Enterprises logo placeholder" />
+            <h3>Veyron Enterprises</h3>
+            <p>Hire, furnish and supply with one dependable partner serving Zimbabwe and the region.</p>
+          </div>
+          <div>
+            <h4>Contact</h4>
+            <p>Phone: +263 77 123 4567</p>
+            <p>Email: hildamachando4@gmail.com</p>
+            <p>Harare, Zimbabwe</p>
+          </div>
+          <div>
+            <h4>Quick Links</h4>
+            <p><a href="equipment.html">Equipment Hire</a></p>
+            <p><a href="furniture.html">Furniture Shop</a></p>
+            <p><a href="groceries.html">Grocery Shop</a></p>
+          </div>
+          <div>
+            <h4>Support Hours</h4>
+            <p>Mon – Fri: 08:00 – 17:30</p>
+            <p>Sat: 09:00 – 14:00</p>
+            <p>After-hours emergencies on request</p>
+          </div>
+        </div>
+        <div class="footer-bottom">
+          <span>© <span data-current-year></span> Veyron Enterprises</span>
+          <span>Strategic logistics & lifestyle solutions</span>
+        </div>
+      </div>
+    </footer>
+
+    <script src="scripts/common.js"></script>
+    <script src="scripts/cart.js"></script>
+    <script src="scripts/order.js"></script>
+  </body>
+</html>
