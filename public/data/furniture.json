@@ -1,0 +1,36 @@
+[
+  {
+    "id": "phiwe-dresser",
+    "name": "Phiwe Dresser with Mirror",
+    "description": "Chest of drawers available with 8, 12 or 16 drawer configurations. Includes matching framed mirror.",
+    "price": 380,
+    "unitLabel": "per set",
+    "images": [
+      "https://images.unsplash.com/photo-1616628182501-7853ac646b98?auto=format&fit=crop&w=1200&q=80",
+      "https://images.unsplash.com/photo-1600585154356-596af9009e82?auto=format&fit=crop&w=1200&q=80"
+    ]
+  },
+  {
+    "id": "three-door-wardrobe",
+    "name": "3 Door Wardrobe",
+    "description": "1175 x 1800 x 400 wardrobe with dual hanging bays and dedicated shelving. Custom colour finishes available.",
+    "price": 170,
+    "unitLabel": "per unit",
+    "images": [
+      "https://images.unsplash.com/photo-1616628188511-4144491f5279?auto=format&fit=crop&w=1200&q=80",
+      "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=1200&q=80"
+    ]
+  },
+  {
+    "id": "veyron-lshape-lounge",
+    "name": "Veyron 3-Seater L-Shape Lounge Suite",
+    "description": "Spacious three seater with chaise extension. Tailored upholstery colours to suit your space.",
+    "price": 300,
+    "unitLabel": "per suite",
+    "images": [
+      "https://images.unsplash.com/photo-1616627454157-0fbb4390b73b?auto=format&fit=crop&w=1200&q=80",
+      "https://images.unsplash.com/photo-1616628188645-768bbdd7422d?auto=format&fit=crop&w=1200&q=80",
+      "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80"
+    ]
+  }
+]

@@ -28,7 +28,6 @@
           <a href="equipment.html">Equipment Hire</a>
           <a href="furniture.html">Furniture</a>
           <a href="groceries.html">Groceries</a>
-          <a href="admin.html">Admin</a>
         </nav>
       </div>
     </header>
@@ -54,6 +53,86 @@
         </div>
         <div class="admin-board" data-order-board>
           <div class="product-empty">No orders captured yet. New submissions will appear here automatically.</div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-heading">
+          <h2>Inventory Catalogue</h2>
+          <p>
+            Review every furniture and grocery item currently surfaced on the storefront. Upload new product photography (up to
+            five images per item) and draft additional listings before publishing them to your live data store.
+          </p>
+        </div>
+
+        <div class="inventory-panels">
+          <article class="inventory-panel">
+            <header>
+              <h3>Furniture</h3>
+              <p>Includes all lounge, bedroom and decor listings.</p>
+            </header>
+            <div class="inventory-items" data-inventory-list="Furniture">
+              <p class="product-empty">Loading furniture catalogue…</p>
+            </div>
+          </article>
+          <article class="inventory-panel">
+            <header>
+              <h3>Groceries</h3>
+              <p>Shows pantry, produce and wholesale grocery products.</p>
+            </header>
+            <div class="inventory-items" data-inventory-list="Groceries">
+              <p class="product-empty">Loading grocery catalogue…</p>
+            </div>
+          </article>
+        </div>
+
+        <div class="inventory-form-card">
+          <h3>Add a new catalogue item</h3>
+          <p>
+            Draft new items locally, then sync them to DynamoDB and upload photography to S3 when you are ready to make them
+            public. Files are stored in your browser only until the AWS integration is configured.
+          </p>
+          <form class="inventory-form" data-inventory-form>
+            <div class="form-grid">
+              <label>
+                <span>Category</span>
+                <select name="category" required>
+                  <option value="Furniture">Furniture</option>
+                  <option value="Groceries">Groceries</option>
+                </select>
+              </label>
+              <label>
+                <span>Product name</span>
+                <input type="text" name="name" placeholder="e.g. Premium Dining Chair" required />
+              </label>
+              <label>
+                <span>Unit price (USD)</span>
+                <input type="number" name="price" min="0" step="0.01" placeholder="0.00" required />
+              </label>
+              <label>
+                <span>Unit label</span>
+                <input type="text" name="unit" placeholder="per item" />
+              </label>
+              <label class="form-full">
+                <span>Description</span>
+                <textarea name="description" rows="4" placeholder="Short marketing description"></textarea>
+              </label>
+              <label class="form-full">
+                <span>Upload product images (max 5)</span>
+                <input type="file" name="images" accept="image/*" multiple />
+              </label>
+            </div>
+            <button class="btn btn-primary" type="submit">Save draft item</button>
+            <p class="form-hint">
+              After saving you can sync the generated data with DynamoDB via the Amplify backend workflow. Uploaded files should
+              be pushed to your dedicated S3 bucket and their URLs pasted back here for production use.
+            </p>
+            <div class="form-feedback" data-inventory-feedback aria-live="polite"></div>
+          </form>
+          <div class="inventory-preview" data-inventory-preview hidden>
+            <h4>Draft item JSON</h4>
+            <pre><code data-inventory-json></code></pre>
+          </div>
         </div>
       </section>
     </main>
@@ -93,6 +172,7 @@
     </footer>
 
     <script src="scripts/common.js"></script>
+    <script src="scripts/data-store.js"></script>
     <script src="scripts/admin.js"></script>
   </body>
 </html>

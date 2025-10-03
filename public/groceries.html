@@ -28,7 +28,6 @@
           <a href="equipment.html">Equipment Hire</a>
           <a href="furniture.html">Furniture</a>
           <a href="groceries.html">Groceries</a>
-          <a href="admin.html">Admin</a>
         </nav>
         <button class="cart-toggle" type="button" data-toggle-cart>
           <span aria-hidden="true">🛒</span>
@@ -60,6 +59,7 @@
           </select>
         </div>
         <div class="product-grid" data-product-grid></div>
+        <nav class="product-pagination" data-pagination aria-label="Grocery pagination"></nav>
       </section>
 
       <section class="shop-footer">
@@ -124,59 +124,12 @@
 
     <script src="scripts/common.js"></script>
     <script src="scripts/cart.js"></script>
+    <script src="scripts/data-store.js"></script>
     <script>
       window.shopConfig = {
         category: 'Groceries',
-        items: [
-          {
-            id: 'fresh-produce-pack',
-            name: 'Farm Fresh Produce Pack',
-            description: 'Seasonal vegetables and salad greens for families or catering teams (approx. 12kg).',
-            price: 65,
-            image: 'https://images.unsplash.com/photo-1506806732259-39c2d0268443?auto=format&fit=crop&w=900&q=80',
-            unitLabel: 'per pack',
-          },
-          {
-            id: 'fruit-basket',
-            name: 'Sunrise Fruit Basket',
-            description: 'Premium apples, bananas, citrus, pineapples and berries sourced twice weekly.',
-            price: 58,
-            image: 'https://images.unsplash.com/photo-1576402187878-974f70c890a5?auto=format&fit=crop&w=900&q=80',
-            unitLabel: 'per basket',
-          },
-          {
-            id: 'protein-selection',
-            name: 'Protein Selection',
-            description: 'Chicken portions, premium beef cuts and tilapia fillets vacuum packed for freshness.',
-            price: 120,
-            image: 'https://images.unsplash.com/photo-1466637574441-749b8f19452f?auto=format&fit=crop&w=900&q=80',
-            unitLabel: 'per combo',
-          },
-          {
-            id: 'pantry-essentials',
-            name: 'Pantry Essentials Crate',
-            description: 'Rice, mealie-meal, cooking oil, pasta, sugar, flour, beans and canned goods.',
-            price: 92,
-            image: 'https://images.unsplash.com/photo-1586201375761-83865001e31b?auto=format&fit=crop&w=900&q=80',
-            unitLabel: 'per crate',
-          },
-          {
-            id: 'breakfast-club',
-            name: 'Breakfast Club Bundle',
-            description: 'Tea, coffee, cereals, yoghurt, spreads and pastries ideal for offices or guest lodges.',
-            price: 75,
-            image: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=900&q=80',
-            unitLabel: 'per bundle',
-          },
-          {
-            id: 'beverage-cooler',
-            name: 'Beverage Cooler Pack',
-            description: 'Assorted juices, bottled water, mixers and soft drinks chilled for events.',
-            price: 68,
-            image: 'https://images.unsplash.com/photo-1513558161293-97712f6220d5?auto=format&fit=crop&w=900&q=80',
-            unitLabel: 'per assortment',
-          }
-        ],
+        dataUrl: 'data/groceries.json',
+        pageSize: 6,
       };
     </script>
     <script src="scripts/shop.js"></script>
