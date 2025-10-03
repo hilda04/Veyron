@@ -15,9 +15,28 @@
 
   function renderProducts(container, items, category) {
     container.innerHTML = '';
+
+    if (!items.length) {
+      const empty = document.createElement('div');
+      empty.className = 'product-empty';
+      empty.textContent = 'No products match your search yet. Try a different keyword.';
+      container.appendChild(empty);
+      return;
+    }
+
     items.forEach((item) => {
       const card = document.createElement('article');
       card.className = 'product-card';
+
+      if (item.image) {
+        const figure = document.createElement('div');
+        figure.className = 'product-image';
+        const img = document.createElement('img');
+        img.src = item.image;
+        img.alt = item.name;
+        figure.appendChild(img);
+        card.appendChild(figure);
+      }
 
       const title = document.createElement('h3');
       title.textContent = item.name;
@@ -29,7 +48,8 @@
 
       const priceRow = document.createElement('div');
       priceRow.className = 'product-price';
-      priceRow.innerHTML = `<span>${window.cart.formatCurrency(item.price)}</span><span>per package</span>`;
+      const priceLabel = item.unitLabel || 'per package';
+      priceRow.innerHTML = `<span>${window.cart.formatCurrency(item.price)}</span><span>${priceLabel}</span>`;
       card.appendChild(priceRow);
 
       const actions = document.createElement('div');
@@ -72,7 +92,43 @@
     const grid = document.querySelector('[data-product-grid]');
     if (!grid) return;
 
+    const searchInput = document.querySelector('[data-product-search]');
+    const sortSelect = document.querySelector('[data-product-sort]');
+
     const { items, category } = window.shopConfig;
-    renderProducts(grid, items, category);
+    const baseItems = Array.isArray(items) ? items.slice() : [];
+
+    function applyFilters() {
+      const term = (searchInput?.value || '').toString().trim().toLowerCase();
+      const sortValue = (sortSelect?.value || 'default').toString();
+
+      let filtered = baseItems.filter((item) => {
+        if (!term) return true;
+        return [item.name, item.description]
+          .filter(Boolean)
+          .some((value) => value.toString().toLowerCase().includes(term));
+      });
+
+      if (sortValue === 'az') {
+        filtered = filtered.slice().sort((a, b) => a.name.localeCompare(b.name));
+      }
+
+      renderProducts(grid, filtered, category);
+      if (typeof grid.scrollTo === 'function') {
+        grid.scrollTo({ left: 0, behavior: 'smooth' });
+      } else {
+        grid.scrollLeft = 0;
+      }
+    }
+
+    if (searchInput) {
+      searchInput.addEventListener('input', applyFilters);
+    }
+
+    if (sortSelect) {
+      sortSelect.addEventListener('change', applyFilters);
+    }
+
+    applyFilters();
   });
 })();

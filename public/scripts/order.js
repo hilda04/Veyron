@@ -1,4 +1,33 @@
 (function () {
+  const ORDER_STORE_KEY = 'veyron-admin-orders-v1';
+
+  function loadExistingOrders() {
+    try {
+      const stored = localStorage.getItem(ORDER_STORE_KEY);
+      if (!stored) return [];
+      const parsed = JSON.parse(stored);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+      console.error('Failed to parse stored orders', error);
+      return [];
+    }
+  }
+
+  function persistOrders(orders) {
+    localStorage.setItem(ORDER_STORE_KEY, JSON.stringify(orders));
+    document.dispatchEvent(
+      new CustomEvent('orders:updated', {
+        detail: orders.slice(),
+      })
+    );
+  }
+
+  function saveOrder(order) {
+    const orders = loadExistingOrders();
+    orders.unshift(order);
+    persistOrders(orders);
+  }
+
   function showOrderAlert(message, type = 'error') {
     const alert = document.querySelector('[data-order-alert]');
     if (!alert) return;
@@ -72,27 +101,36 @@
     const items = window.cart.getItems();
     const total = window.cart.getTotal();
 
-    const orderLines = items
-      .map((item) => `- ${item.name}${item.category ? ` (${item.category})` : ''} x ${item.quantity} = ${window.cart.formatCurrency(item.price * item.quantity)}`)
-      .join('\n');
+    const orderRecord = {
+      id: `order-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      status: 'Open',
+      customer: {
+        name: customerName,
+        phone: customerPhone,
+        email: email || null,
+      },
+      delivery: {
+        address,
+        date: deliveryDate,
+        time: deliveryTime,
+      },
+      payment,
+      notes: notes || null,
+      items: items.map((item) => ({
+        id: item.id,
+        name: item.name,
+        quantity: item.quantity,
+        category: item.category || null,
+        unitPrice: item.price,
+        total: item.price * item.quantity,
+      })),
+      total,
+    };
 
-    const emailSubject = encodeURIComponent(`Order from ${customerName}`);
-    const emailBody = encodeURIComponent(
-      `Client Name: ${customerName}\n` +
-        `Phone: ${customerPhone}\n` +
-        `Email: ${email || 'N/A'}\n` +
-        `Delivery Address: ${address}\n` +
-        `Preferred Delivery Date: ${deliveryDate}\n` +
-        `Preferred Delivery Time: ${deliveryTime}\n` +
-        `Payment Method: ${payment}\n` +
-        `Notes: ${notes || 'None'}\n` +
-        `\nOrder Summary:\n${orderLines}\n\nEstimated Total: ${window.cart.formatCurrency(total)}`
-    );
+    saveOrder(orderRecord);
 
-    const mailtoLink = `mailto:hildamachando4@gmail.com?subject=${emailSubject}&body=${emailBody}`;
-    window.location.href = mailtoLink;
-
-    showOrderAlert('Order summary opened in your email app. Please send the email to confirm your booking.', 'success');
+    showOrderAlert('Your order has been queued for our team. We will reach out soon to confirm fulfilment.', 'success');
     window.cart.clear();
     form.reset();
     renderSummary();

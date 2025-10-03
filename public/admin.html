@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Order Admin | Veyron Enterprises</title>
+    <meta
+      name="description"
+      content="Internal order dashboard for Veyron Enterprises to review, triage and complete customer requests."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles/styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="navbar">
+        <a class="logo" href="index.html">
+          <img src="assets/logo.svg" alt="Veyron Enterprises logo placeholder" />
+          <span>Veyron Enterprises</span>
+        </a>
+        <nav class="nav-links">
+          <a href="index.html">Home</a>
+          <a href="equipment.html">Equipment Hire</a>
+          <a href="furniture.html">Furniture</a>
+          <a href="groceries.html">Groceries</a>
+          <a href="admin.html">Admin</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="page-hero">
+        <h1>Order Administration</h1>
+        <p>
+          Review the most recent customer submissions captured from the online storefront. Update the status as each request moves from
+          <strong>Open</strong> to <strong>In Progress</strong> and finally <strong>Completed</strong>.
+        </p>
+      </section>
+
+      <section class="section">
+        <div class="admin-toolbar">
+          <input type="search" placeholder="Search by customer or product" aria-label="Search orders" data-admin-search />
+          <select aria-label="Filter orders by status" data-status-filter>
+            <option value="all">All statuses</option>
+            <option value="Open">Open</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Completed">Completed</option>
+          </select>
+        </div>
+        <div class="admin-board" data-order-board>
+          <div class="product-empty">No orders captured yet. New submissions will appear here automatically.</div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        <div class="footer-top">
+          <div class="footer-brand">
+            <img src="assets/logo.svg" alt="Veyron Enterprises logo placeholder" />
+            <h3>Veyron Enterprises</h3>
+            <p>Hire, furnish and supply with one dependable partner serving Zimbabwe and the region.</p>
+          </div>
+          <div>
+            <h4>Contact</h4>
+            <p>Phone: <a href="tel:+263787217911">+263 78 721 7911</a></p>
+            <p>Email: <a href="mailto:hildamachando4@gmail.com">hildamachando4@gmail.com</a></p>
+            <p>Shop 106 Longcheng Plaza, Belvedere, Harare</p>
+          </div>
+          <div>
+            <h4>Quick Links</h4>
+            <p><a href="equipment.html">Equipment Hire</a></p>
+            <p><a href="furniture.html">Furniture Shop</a></p>
+            <p><a href="groceries.html">Grocery Shop</a></p>
+          </div>
+          <div>
+            <h4>Support Hours</h4>
+            <p>Mon – Fri: 08:00 – 17:30</p>
+            <p>Sat: 09:00 – 14:00</p>
+            <p>After-hours emergencies on request</p>
+          </div>
+        </div>
+        <div class="footer-bottom">
+          <span>© <span data-current-year></span> Veyron Enterprises</span>
+          <span>Strategic logistics & lifestyle solutions</span>
+        </div>
+      </div>
+    </footer>
+
+    <script src="scripts/common.js"></script>
+    <script src="scripts/admin.js"></script>
+  </body>
+</html>
