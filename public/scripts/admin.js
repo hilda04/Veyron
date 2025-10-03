@@ -9,6 +9,66 @@
 
   let orders = [];
 
+  function buildOrderDocument(order) {
+    const lines = [];
+    lines.push(`Order ID: ${order.id}`);
+    lines.push(`Status: ${order.status || 'Open'}`);
+    lines.push(`Received: ${formatDate(order.createdAt)}`);
+    lines.push('');
+    lines.push('Customer');
+    lines.push(`  Name: ${order.customer?.name || '—'}`);
+    lines.push(`  Phone: ${order.customer?.phone || '—'}`);
+    lines.push(`  Email: ${order.customer?.email || '—'}`);
+    lines.push('');
+    lines.push('Delivery');
+    lines.push(`  Address: ${order.delivery?.address || '—'}`);
+    lines.push(`  Date: ${order.delivery?.date || '—'}`);
+    lines.push(`  Time: ${order.delivery?.time || '—'}`);
+    lines.push(`  Payment: ${order.payment || '—'}`);
+
+    if (order.notes) {
+      lines.push('');
+      lines.push('Notes');
+      lines.push(`  ${order.notes}`);
+    }
+
+    lines.push('');
+    lines.push('Items');
+    if (Array.isArray(order.items) && order.items.length) {
+      order.items.forEach((item, index) => {
+        const lineTotal = formatCurrency(item.total);
+        const unit = formatCurrency(item.unitPrice);
+        lines.push(
+          `  ${index + 1}. ${item.name}${item.category ? ` (${item.category})` : ''} — ${item.quantity} × ${unit} = ${lineTotal}`
+        );
+      });
+    } else {
+      lines.push('  No line items recorded.');
+    }
+
+    lines.push('');
+    lines.push(`Order Total: ${formatCurrency(order.total)}`);
+
+    return lines.join('\n');
+  }
+
+  function downloadOrderDetails(order) {
+    try {
+      const contents = buildOrderDocument(order);
+      const blob = new Blob([contents], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `${order.id || 'order'}-details.txt`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Failed to download order', error);
+    }
+  }
+
   function loadOrders() {
     try {
       const stored = localStorage.getItem(ORDER_STORE_KEY);
@@ -188,6 +248,20 @@
       total.innerHTML = `Total: <strong>${formatCurrency(order.total)}</strong>`;
       itemsBlock.appendChild(total);
       card.appendChild(itemsBlock);
+
+      if ((order.status || 'Open') === 'Open') {
+        const actions = document.createElement('div');
+        actions.className = 'admin-card__actions';
+        const downloadBtn = document.createElement('button');
+        downloadBtn.type = 'button';
+        downloadBtn.className = 'download-order-btn';
+        downloadBtn.textContent = 'Download order details';
+        downloadBtn.addEventListener('click', () => {
+          downloadOrderDetails(order);
+        });
+        actions.appendChild(downloadBtn);
+        card.appendChild(actions);
+      }
 
       board.appendChild(card);
     });
