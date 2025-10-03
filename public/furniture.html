@@ -62,6 +62,7 @@
           </select>
         </div>
         <div class="product-grid" data-product-grid data-layout="carousel"></div>
+        <nav class="product-pagination" data-pagination aria-label="Furniture pagination"></nav>
       </section>
 
       <section class="shop-footer">
@@ -126,35 +127,12 @@
 
     <script src="scripts/common.js"></script>
     <script src="scripts/cart.js"></script>
+    <script src="scripts/data-store.js"></script>
     <script>
       window.shopConfig = {
         category: 'Furniture',
-        items: [
-          {
-            id: 'phiwe-dresser',
-            name: 'Phiwe Dresser with Mirror',
-            description: 'Chest of drawers available with 8, 12 or 16 drawer configurations. Includes matching framed mirror.',
-            price: 380,
-            image: 'https://images.unsplash.com/photo-1616628182501-7853ac646b98?auto=format&fit=crop&w=900&q=80',
-            unitLabel: 'per set',
-          },
-          {
-            id: 'three-door-wardrobe',
-            name: '3 Door Wardrobe',
-            description: '1175 x 1800 x 400 wardrobe with dual hanging bays and dedicated shelving. Custom colour finishes available.',
-            price: 170,
-            image: 'https://images.unsplash.com/photo-1616628188511-4144491f5279?auto=format&fit=crop&w=900&q=80',
-            unitLabel: 'per unit',
-          },
-          {
-            id: 'veyron-lshape-lounge',
-            name: 'Veyron 3-Seater L-Shape Lounge Suite',
-            description: 'Spacious three seater with chaise extension. Tailored upholstery colours to suit your space.',
-            price: 300,
-            image: 'https://images.unsplash.com/photo-1616627454157-0fbb4390b73b?auto=format&fit=crop&w=900&q=80',
-            unitLabel: 'per suite',
-          }
-        ],
+        dataUrl: 'data/furniture.json',
+        pageSize: 6,
       };
     </script>
     <script src="scripts/shop.js"></script>

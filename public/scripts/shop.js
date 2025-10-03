@@ -1,5 +1,17 @@
 (function () {
   const MAX_QUANTITY = 10;
+  const MAX_IMAGES = 5;
+
+  function slugify(value) {
+    return (
+      value
+        .toString()
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '') || 'item'
+    );
+  }
 
   function createQuantitySelect() {
     const select = document.createElement('select');
@@ -11,6 +23,73 @@
       select.appendChild(option);
     }
     return select;
+  }
+
+  function collectImages(item) {
+    const sources = [];
+    [item.image, ...(Array.isArray(item.images) ? item.images : [])].forEach((src) => {
+      if (!src) return;
+      const value = src.toString();
+      if (value && !sources.includes(value)) {
+        sources.push(value);
+      }
+    });
+    return sources.slice(0, MAX_IMAGES);
+  }
+
+  function sanitizeItems(rawItems, category, source) {
+    if (!Array.isArray(rawItems)) return [];
+    return rawItems
+      .filter((item) => item && item.name)
+      .map((item, index) => {
+        const images = collectImages(item);
+        const safePrice = Number(item.price) || 0;
+        const id = item.id || `${slugify(item.name || category)}-${index + 1}`;
+        return {
+          ...item,
+          id,
+          category: item.category || category,
+          price: safePrice,
+          unitLabel: item.unitLabel || item.unit || '',
+          description: item.description || '',
+          images,
+          image: images[0] || null,
+          source: source || item.source || 'catalogue',
+        };
+      });
+  }
+
+  function createImageButton(item) {
+    const images = collectImages(item);
+    if (!images.length) return null;
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'product-image';
+    button.setAttribute('aria-label', `View images of ${item.name}`);
+
+    const img = document.createElement('img');
+    img.src = images[0];
+    img.alt = '';
+    button.appendChild(img);
+
+    if (images.length > 1) {
+      const badge = document.createElement('span');
+      badge.className = 'product-image__badge';
+      badge.textContent = `${images.length} photos`;
+      button.appendChild(badge);
+    }
+
+    if (window.productGallery && typeof window.productGallery.open === 'function') {
+      button.addEventListener('click', () => {
+        window.productGallery.open(images, item.name);
+      });
+    } else {
+      button.disabled = true;
+      button.title = 'Image preview unavailable in this browser.';
+    }
+
+    return button;
   }
 
   function renderProducts(container, items, category) {
@@ -27,15 +106,11 @@
     items.forEach((item) => {
       const card = document.createElement('article');
       card.className = 'product-card';
+      card.dataset.productId = item.id;
 
-      if (item.image) {
-        const figure = document.createElement('div');
-        figure.className = 'product-image';
-        const img = document.createElement('img');
-        img.src = item.image;
-        img.alt = item.name;
-        figure.appendChild(img);
-        card.appendChild(figure);
+      const imageButton = createImageButton(item);
+      if (imageButton) {
+        card.appendChild(imageButton);
       }
 
       const title = document.createElement('h3');
@@ -99,14 +174,28 @@
 
     const searchInput = document.querySelector('[data-product-search]');
     const sortSelect = document.querySelector('[data-product-sort]');
+    const pagination = document.querySelector('[data-pagination]');
 
-    const { items, category, dataUrl } = window.shopConfig;
+    const { category, dataUrl } = window.shopConfig;
+    const initialItems = sanitizeItems(window.shopConfig.items || [], category, 'catalogue');
     const pageSize = Math.max(1, Number(window.shopConfig.pageSize) || 12);
-    let baseItems = Array.isArray(items) ? items.slice() : [];
-    let filteredItems = baseItems.slice();
+
+    let remoteItems = initialItems;
+    let baseItems = [];
+    let filteredItems = [];
     let currentPage = 1;
 
-    const pagination = document.querySelector('[data-pagination]');
+    function getCustomItems() {
+      if (!window.productStore || typeof window.productStore.getCustomProductsByCategory !== 'function') {
+        return [];
+      }
+      return sanitizeItems(window.productStore.getCustomProductsByCategory(category) || [], category, 'custom');
+    }
+
+    function rebuildBaseItems({ resetPage = true } = {}) {
+      baseItems = [...remoteItems, ...getCustomItems()];
+      applyFilters({ resetPage });
+    }
 
     function renderPagination(totalItems) {
       if (!pagination) return;
@@ -139,14 +228,10 @@
       };
 
       const totalPagesSafe = Math.max(1, totalPages);
-      pagination.appendChild(
-        createButton('Prev', Math.max(1, currentPage - 1), { disabled: currentPage === 1 })
-      );
+      pagination.appendChild(createButton('Prev', Math.max(1, currentPage - 1), { disabled: currentPage === 1 }));
 
       for (let page = 1; page <= totalPagesSafe; page += 1) {
-        pagination.appendChild(
-          createButton(page.toString(), page, { active: page === currentPage })
-        );
+        pagination.appendChild(createButton(page.toString(), page, { active: page === currentPage }));
       }
 
       pagination.appendChild(
@@ -216,7 +301,7 @@
       if (grid) {
         const loading = document.createElement('div');
         loading.className = 'product-empty';
-        loading.textContent = 'Loading groceries…';
+        loading.textContent = 'Loading catalogue…';
         grid.innerHTML = '';
         grid.appendChild(loading);
       }
@@ -232,36 +317,31 @@
         })
         .then((data) => {
           if (!Array.isArray(data)) {
-            throw new Error('Unexpected groceries format');
+            throw new Error('Unexpected data format');
           }
-          baseItems = data
-            .filter((item) => item && item.name)
-            .map((item, index) => ({
-              ...item,
-              id: item.id || `grocery-${index + 1}`,
-              price: Number(item.price) || 0,
-            }));
-          filteredItems = baseItems.slice();
-          currentPage = 1;
-          applyFilters({ resetPage: true });
+          remoteItems = sanitizeItems(data, category, 'catalogue');
+          rebuildBaseItems({ resetPage: true });
         })
         .catch((error) => {
-          console.error('Failed to load groceries data', error);
+          console.error('Failed to load catalogue data', error);
+          remoteItems = [];
+          rebuildBaseItems({ resetPage: true });
           if (grid) {
             grid.innerHTML = '';
             const failure = document.createElement('div');
             failure.className = 'product-empty';
-            failure.textContent = 'Unable to load groceries right now. Please refresh to try again.';
+            failure.textContent = 'Unable to load products right now. Please refresh to try again.';
             grid.appendChild(failure);
           }
-          if (pagination) {
-            pagination.innerHTML = '';
-            pagination.hidden = true;
-          }
         });
-      return;
+    } else {
+      rebuildBaseItems({ resetPage: true });
     }
 
-    applyFilters({ resetPage: true });
+    if (window.productStore && typeof window.productStore.subscribe === 'function') {
+      window.productStore.subscribe(() => {
+        rebuildBaseItems({ resetPage: false });
+      });
+    }
   });
 })();
