@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Furniture Shop | Veyron Enterprises</title>
+    <meta
+      name="description"
+      content="Curated furniture collections for events, hospitality and executive living. Add pieces to your cart and submit an order with Veyron Enterprises."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles/styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="navbar">
+        <a class="logo" href="index.html">
+          <img src="assets/logo.svg" alt="Veyron Enterprises logo placeholder" />
+          <span>Veyron Enterprises</span>
+        </a>
+        <nav class="nav-links">
+          <a href="index.html">Home</a>
+          <a href="equipment.html">Equipment Hire</a>
+          <a href="furniture.html">Furniture</a>
+          <a href="groceries.html">Groceries</a>
+        </nav>
+        <button class="cart-toggle" type="button" data-toggle-cart>
+          <span aria-hidden="true">🛒</span>
+          <span>Cart</span>
+          <span class="cart-count" data-cart-count>0</span>
+        </button>
+      </div>
+    </header>
+
+    <main>
+      <section class="page-hero">
+        <h1>Designer Furniture & Decor Collections</h1>
+        <p>
+          Build effortless settings for weddings, lounges and executive residences. Select the pieces you love, add them to your cart and
+          submit the order for our stylists to confirm availability, delivery and installation.
+        </p>
+      </section>
+
+      <section class="section">
+        <div class="section-heading">
+          <h2>Curated Selections</h2>
+          <p>
+            Each item has been chosen for its craftsmanship and durability. Quantities represent standard packages that can be scaled to suit
+            your space.
+          </p>
+        </div>
+        <div class="product-grid" data-product-grid></div>
+      </section>
+
+      <section class="shop-footer">
+        <h2>Ready to Submit Your Furniture Order?</h2>
+        <p>Add all desired items to your cart. When you are finished, click the button below to confirm your order details.</p>
+        <div class="alert error" data-cart-alert></div>
+        <button class="btn btn-primary" type="button" data-submit-order>Submit Order</button>
+        <p>On the next page you will add your name, contact number, delivery address, preferred delivery date & time and payment method.</p>
+      </section>
+    </main>
+
+    <div class="cart-drawer" data-cart-drawer aria-hidden="true">
+      <div class="cart-panel" role="dialog" aria-modal="true" aria-labelledby="cart-title">
+        <header>
+          <h2 id="cart-title">Your Cart</h2>
+          <button class="cart-close" type="button" data-close-cart>Close</button>
+        </header>
+        <div class="cart-items" data-cart-items></div>
+        <div class="cart-footer">
+          <div class="summary-row">
+            <span>Total</span>
+            <span data-cart-total>$0.00</span>
+          </div>
+          <button class="btn btn-primary checkout-btn" type="button" data-submit-order>Submit Order</button>
+        </div>
+      </div>
+    </div>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        <div class="footer-top">
+          <div class="footer-brand">
+            <img src="assets/logo.svg" alt="Veyron Enterprises logo placeholder" />
+            <h3>Veyron Enterprises</h3>
+            <p>Hire, furnish and supply with one dependable partner serving Zimbabwe and the region.</p>
+          </div>
+          <div>
+            <h4>Contact</h4>
+            <p>Phone: +263 77 123 4567</p>
+            <p>Email: hildamachando4@gmail.com</p>
+            <p>Harare, Zimbabwe</p>
+          </div>
+          <div>
+            <h4>Quick Links</h4>
+            <p><a href="equipment.html">Equipment Hire</a></p>
+            <p><a href="furniture.html">Furniture Shop</a></p>
+            <p><a href="groceries.html">Grocery Shop</a></p>
+          </div>
+          <div>
+            <h4>Support Hours</h4>
+            <p>Mon – Fri: 08:00 – 17:30</p>
+            <p>Sat: 09:00 – 14:00</p>
+            <p>After-hours emergencies on request</p>
+          </div>
+        </div>
+        <div class="footer-bottom">
+          <span>© <span data-current-year></span> Veyron Enterprises</span>
+          <span>Strategic logistics & lifestyle solutions</span>
+        </div>
+      </div>
+    </footer>
+
+    <script src="scripts/common.js"></script>
+    <script src="scripts/cart.js"></script>
+    <script>
+      window.shopConfig = {
+        category: 'Furniture',
+        items: [
+          {
+            id: 'azure-modular-sofa',
+            name: 'Azure Modular Sofa',
+            description: 'Deep-seated five-piece modular sofa with performance linen upholstery and brass accents.',
+            price: 1850,
+          },
+          {
+            id: 'marble-dining-set',
+            name: 'Marble Executive Dining Set',
+            description: '10-seater marble dining table with upholstered dining chairs and statement pendant lighting.',
+            price: 2980,
+          },
+          {
+            id: 'verde-outdoor-lounge',
+            name: 'Verde Outdoor Lounge Pack',
+            description: 'Weatherproof wicker lounge suite with coffee tables, cushions and planters for patios.',
+            price: 1640,
+          },
+          {
+            id: 'signature-bedroom',
+            name: 'Signature Bedroom Ensemble',
+            description: 'King-size bed frame, orthopaedic mattress, bedside pedestals and lighting package.',
+            price: 2120,
+          },
+          {
+            id: 'conference-podium',
+            name: 'Conference Podium Set',
+            description: 'Speaker podium, stage skirting, backdrop panels and leather executive chairs for boardrooms.',
+            price: 980,
+          },
+          {
+            id: 'boutique-bar-counter',
+            name: 'Boutique Bar Counter',
+            description: 'Illuminated bar counter with shelving, glassware starter pack and bar stools.',
+            price: 1360,
+          }
+        ],
+      };
+    </script>
+    <script src="scripts/shop.js"></script>
+  </body>
+</html>
