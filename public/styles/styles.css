@@ -234,6 +234,18 @@ img {
   box-shadow: 0 22px 38px rgba(0, 0, 0, 0.32);
 }
 
+.btn-secondary {
+  background: linear-gradient(135deg, #1a4f8b, #163f6d);
+  color: #ffffff;
+  box-shadow: 0 12px 24px rgba(22, 63, 109, 0.28);
+}
+
+.btn-secondary:hover,
+.btn-secondary:focus {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 32px rgba(22, 63, 109, 0.36);
+}
+
 .btn-outline {
   background: transparent;
   color: var(--brand-primary);
@@ -1334,6 +1346,18 @@ textarea {
   color: #111111;
 }
 
+.inventory-badge--override {
+  background: rgba(44, 120, 201, 0.15);
+  border: 1px solid rgba(44, 120, 201, 0.4);
+  color: #1a4f8b;
+}
+
+.inventory-badge--removed {
+  background: rgba(187, 53, 53, 0.12);
+  border: 1px solid rgba(187, 53, 53, 0.35);
+  color: #8b1e1e;
+}
+
 .inventory-item__meta {
   margin: 0;
   font-weight: 600;
@@ -1395,6 +1419,22 @@ textarea {
   background: rgba(187, 53, 53, 0.2);
 }
 
+.inventory-item__btn--secondary {
+  border-color: rgba(44, 120, 201, 0.4);
+  background: rgba(44, 120, 201, 0.12);
+  color: #1a4f8b;
+}
+
+.inventory-item__btn--secondary:hover,
+.inventory-item__btn--secondary:focus {
+  background: rgba(44, 120, 201, 0.2);
+}
+
+.inventory-item--removed {
+  background: linear-gradient(135deg, rgba(187, 53, 53, 0.08), rgba(255, 255, 255, 0.9));
+  border-color: rgba(187, 53, 53, 0.35);
+}
+
 .inventory-form-card {
   background: var(--surface);
   border-radius: var(--radius-lg);
@@ -1417,6 +1457,42 @@ textarea {
 .inventory-form {
   display: grid;
   gap: 1.5rem;
+}
+
+.inventory-form__editing {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md);
+  background: rgba(44, 120, 201, 0.12);
+  border: 1px solid rgba(44, 120, 201, 0.35);
+  font-size: 0.95rem;
+}
+
+.inventory-form__editing[hidden] {
+  display: none;
+}
+
+.inventory-form__cancel {
+  background: none;
+  border: none;
+  color: #1a4f8b;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+}
+
+.inventory-form__cancel:hover,
+.inventory-form__cancel:focus {
+  background: rgba(44, 120, 201, 0.2);
+}
+
+.inventory-sync {
+  display: grid;
+  gap: 0.75rem;
 }
 
 .form-grid {
@@ -1459,6 +1535,10 @@ textarea {
 
 .form-feedback.success {
   color: #1f7a1f;
+}
+
+.form-feedback.info {
+  color: var(--text-muted);
 }
 
 .form-feedback.error {
