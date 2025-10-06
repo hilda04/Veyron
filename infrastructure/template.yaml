@@ -22,7 +22,7 @@ Parameters:
   AllowedOrigins:
     Type: String
     Default: "*"
-    Description: Comma separated list of origins allowed to call the API. Example: https://admin.example.com
+    Description: Comma separated list of origins allowed to call the API. Example https://admin.example.com
   SignedUrlExpiry:
     Type: Number
     Default: 900
