@@ -47,19 +47,21 @@ Visit `veyron-admin-portal.html` (keep the URL private) to:
 
 1. Review captured orders, filter by status, and download open-order details as plain text.
 2. Inspect the current furniture and grocery catalogue, including image galleries for each listing.
-3. Stage new items locally. Supply the category, price, unit label, description and upload up to five images. Drafts are stored in the browser (via `localStorage`) and immediately appear on the public storefronts alongside catalogue items.
-4. Remove staged drafts at any time.
+3. Stage new catalogue items locally **or edit the listings already published**. You can add or remove photography (up to five images per item), change descriptions/pricing and hide products from the storefront without touching the JSON files.
+4. Use the **Sync changes to AWS** button once your API Gateway endpoint is configured in `public/scripts/config.js`.
 
-When you are ready to promote a draft to production, sync the generated JSON (shown in the “Draft item JSON” preview) to DynamoDB and upload the images to your permanent storage. Replace the draft’s `images` array with the hosted URLs.
+Drafts, overrides and hidden items are stored in the browser (via `localStorage`) so you can experiment safely. When you are ready to publish the changes to AWS, update `scripts/config.js` with your API URL and run the sync action from the admin portal.
 
 ## Image & Data Storage on AWS
 
-For production use the following architecture:
+The repository now includes a ready-to-deploy serverless backend under [`infrastructure/`](infrastructure/). The [`template.yaml`](infrastructure/template.yaml) SAM template provisions:
 
-1. **Amazon S3** – create a bucket (for example `veyron-catalogue-images`) to store product photography. Enable CORS so the web app can load objects directly. Organise images under folders such as `furniture/` and `groceries/`.
-2. **Amazon DynamoDB** – create a table (e.g. `VeyronCatalogue`) with a partition key `category` (`Furniture`/`Groceries`) and a sort key `id`. Store each item as a record containing the same fields as the JSON files plus any operational metadata (stock levels, flags, etc.).
-3. **AWS Lambda + API Gateway (or AWS AppSync)** – expose CRUD endpoints for catalogue data and secure them with IAM or Cognito. The admin portal form can later call these endpoints to persist drafts instead of relying on local storage.
-4. **Image workflow** – when uploading through the admin portal, send files to S3 (presigned upload URLs work well). Store the resulting S3 object URLs back on the item in DynamoDB so the storefront displays the hosted assets.
+1. **Amazon API Gateway** – REST endpoints for syncing catalogue updates and generating S3 upload URLs.
+2. **AWS Lambda (Node.js 18)** – business logic that stores products in DynamoDB and issues pre-signed S3 URLs.
+3. **Amazon DynamoDB** – a pay-per-request table keyed by `Category` and `ProductId` to hold the canonical catalogue.
+4. **Amazon S3** – an images bucket with CORS rules so the storefront can serve uploaded photography.
+
+Deploy the stack with `sam build && sam deploy --guided`, then paste the emitted `ApiUrl` into `public/scripts/config.js`. After that, the **Sync changes to AWS** button will push your local drafts, overrides and removals into DynamoDB in one call.
 
 ## Deploying with AWS Amplify
 

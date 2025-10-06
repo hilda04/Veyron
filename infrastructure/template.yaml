@@ -1,0 +1,140 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Backend services for the Veyron admin portal inventory management workflow.
+
+Globals:
+  Function:
+    Runtime: nodejs18.x
+    Timeout: 15
+    MemorySize: 256
+    Environment:
+      Variables:
+        TABLE_NAME: !Ref ProductsTable
+        BUCKET_NAME: !Ref ProductImagesBucket
+        URL_EXPIRY_SECONDS: !Ref SignedUrlExpiry
+        ALLOWED_ORIGINS: !Ref AllowedOrigins
+
+Parameters:
+  StageName:
+    Type: String
+    Default: prod
+    Description: API Gateway deployment stage.
+  AllowedOrigins:
+    Type: String
+    Default: "*"
+    Description: Comma separated list of origins allowed to call the API. Example: https://admin.example.com
+  SignedUrlExpiry:
+    Type: Number
+    Default: 900
+    Description: Validity window in seconds for generated S3 pre-signed upload URLs.
+
+Resources:
+  AdminApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: !Ref StageName
+      Cors:
+        AllowHeaders: "content-type,authorization,x-api-key"
+        AllowMethods: "OPTIONS,GET,POST,PUT,DELETE"
+        AllowOrigins: !Ref AllowedOrigins
+        MaxAge: 3600
+      MethodSettings:
+        - ResourcePath: "/*"
+          HttpMethod: "*"
+          LoggingLevel: INFO
+          MetricsEnabled: true
+
+  ProductsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      TableName: !Sub "${AWS::StackName}-products"
+      AttributeDefinitions:
+        - AttributeName: Category
+          AttributeType: S
+        - AttributeName: ProductId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: Category
+          KeyType: HASH
+        - AttributeName: ProductId
+          KeyType: RANGE
+
+  ProductImagesBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::StackName}-product-images-${AWS::Region}-${AWS::AccountId}"
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - "*"
+            AllowedMethods:
+              - GET
+              - PUT
+              - HEAD
+            AllowedOrigins:
+              - !Ref AllowedOrigins
+            ExposedHeaders:
+              - ETag
+            MaxAge: 3600
+
+  ProductsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src
+      Handler: handlers/products.handler
+      Description: Handles inventory sync, catalog CRUD and image upload URL generation for the admin UI.
+      Events:
+        SyncInventory:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AdminApi
+            Path: /sync
+            Method: post
+        ListProducts:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AdminApi
+            Path: /products
+            Method: get
+        GetProduct:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AdminApi
+            Path: /products/{category}/{id}
+            Method: get
+        PutProduct:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AdminApi
+            Path: /products/{category}/{id}
+            Method: put
+        DeleteProduct:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AdminApi
+            Path: /products/{category}/{id}
+            Method: delete
+        CreateUploadUrl:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AdminApi
+            Path: /products/{category}/{id}/images
+            Method: post
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ProductsTable
+        - S3CrudPolicy:
+            BucketName: !Ref ProductImagesBucket
+      Tracing: Active
+
+Outputs:
+  ApiUrl:
+    Description: Base URL for the admin API.
+    Value: !Sub "https://${AdminApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}"
+  ProductsTableName:
+    Description: DynamoDB table storing catalogue items.
+    Value: !Ref ProductsTable
+  ProductImagesBucketName:
+    Description: S3 bucket that stores uploaded product images.
+    Value: !Ref ProductImagesBucket

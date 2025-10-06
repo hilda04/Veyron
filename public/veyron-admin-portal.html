@@ -87,12 +87,20 @@
         </div>
 
         <div class="inventory-form-card">
-          <h3>Add a new catalogue item</h3>
+          <h3>Manage catalogue items</h3>
           <p>
-            Draft new items locally, then sync them to DynamoDB and upload photography to S3 when you are ready to make them
-            public. Files are stored in your browser only until the AWS integration is configured.
+            Draft new items locally or edit the listings already published on your storefront. You can upload additional
+            photography (up to five images per item), update descriptions and pricing, or hide products entirely until you are
+            ready to sell them again.
           </p>
           <form class="inventory-form" data-inventory-form>
+            <input type="hidden" data-inventory-product-id />
+            <input type="hidden" data-inventory-editor-mode />
+            <input type="hidden" data-inventory-catalogue-id />
+            <div class="inventory-form__editing" data-inventory-editing-banner hidden>
+              <span data-inventory-editing-label></span>
+              <button type="button" class="inventory-form__cancel" data-inventory-cancel-edit>Cancel editing</button>
+            </div>
             <div class="form-grid">
               <label>
                 <span>Category</span>
@@ -118,17 +126,28 @@
                 <textarea name="description" rows="4" placeholder="Short marketing description"></textarea>
               </label>
               <label class="form-full">
+                <span>Existing image URLs (one per line)</span>
+                <textarea name="imageUrls" rows="3" placeholder="https://example.com/product.jpg"></textarea>
+              </label>
+              <label class="form-full">
                 <span>Upload product images (max 5)</span>
                 <input type="file" name="images" accept="image/*" multiple />
               </label>
             </div>
             <button class="btn btn-primary" type="submit">Save draft item</button>
             <p class="form-hint">
-              After saving you can sync the generated data with DynamoDB via the Amplify backend workflow. Uploaded files should
-              be pushed to your dedicated S3 bucket and their URLs pasted back here for production use.
+              When editing a published item your changes are stored locally as overrides. Sync them to DynamoDB and update the
+              S3 image paths once you have deployed the accompanying AWS backend.
             </p>
             <div class="form-feedback" data-inventory-feedback aria-live="polite"></div>
           </form>
+          <div class="inventory-sync">
+            <button type="button" class="btn btn-secondary" data-inventory-sync>Sync changes to AWS</button>
+            <p class="form-hint">
+              Configure <code>scripts/config.js</code> with your API Gateway URL and optional auth token before syncing.
+            </p>
+            <div class="form-feedback" data-inventory-sync-feedback aria-live="polite"></div>
+          </div>
           <div class="inventory-preview" data-inventory-preview hidden>
             <h4>Draft item JSON</h4>
             <pre><code data-inventory-json></code></pre>
@@ -172,6 +191,7 @@
     </footer>
 
     <script src="scripts/common.js"></script>
+    <script src="scripts/config.js"></script>
     <script src="scripts/data-store.js"></script>
     <script src="scripts/admin.js"></script>
   </body>

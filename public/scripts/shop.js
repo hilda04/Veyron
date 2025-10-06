@@ -185,15 +185,62 @@
     let filteredItems = [];
     let currentPage = 1;
 
-    function getCustomItems() {
-      if (!window.productStore || typeof window.productStore.getCustomProductsByCategory !== 'function') {
-        return [];
-      }
-      return sanitizeItems(window.productStore.getCustomProductsByCategory(category) || [], category, 'custom');
-    }
-
     function rebuildBaseItems({ resetPage = true } = {}) {
-      baseItems = [...remoteItems, ...getCustomItems()];
+      const adjustments =
+        window.productStore && typeof window.productStore.getInventoryState === 'function'
+          ? window.productStore.getInventoryState()
+          : { overrides: [], removed: [], drafts: [] };
+
+      const categoryMatch = (item) =>
+        (item?.category || '').toString().toLowerCase() === category.toString().toLowerCase();
+
+      const overrideMap = new Map(
+        (adjustments.overrides || [])
+          .filter((item) => categoryMatch(item) && item.overrideOf)
+          .map((item) => [item.overrideOf, item])
+      );
+
+      const removedSet = new Set(
+        (adjustments.removed || [])
+          .filter((item) => categoryMatch(item) && item.overrideOf)
+          .map((item) => item.overrideOf)
+      );
+
+      const draftItems = sanitizeItems(
+        (adjustments.drafts || []).filter((item) => categoryMatch(item)),
+        category,
+        'custom'
+      );
+
+      const mergedRemote = remoteItems
+        .filter((item) => !removedSet.has(item.id))
+        .map((item) => {
+          if (!overrideMap.has(item.id)) {
+            return item;
+          }
+          const override = overrideMap.get(item.id);
+          overrideMap.delete(item.id);
+          const merged = {
+            ...item,
+            ...override,
+            id: item.id,
+            images:
+              override.images && override.images.length ? override.images.slice() : item.images.slice(),
+          };
+          const [sanitizedOverride] = sanitizeItems([merged], category, 'custom');
+          return sanitizedOverride || item;
+        });
+
+      const orphanOverrides = sanitizeItems(
+        Array.from(overrideMap.entries()).map(([catalogueId, item]) => ({
+          ...item,
+          id: catalogueId || item.id,
+        })),
+        category,
+        'custom'
+      );
+
+      baseItems = [...mergedRemote, ...draftItems, ...orphanOverrides];
       applyFilters({ resetPage });
     }
 

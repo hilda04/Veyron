@@ -13,6 +13,7 @@
     Groceries: 'data/groceries.json',
   };
   const MAX_UPLOAD_IMAGES = 5;
+  const SYNC_ENDPOINT = '/sync';
   const inventoryState = {
     data: {
       Furniture: [],
@@ -306,7 +307,60 @@
       image: limited[0] || null,
       category,
       source,
+      storeId: item.storeId || item.id,
+      mode: item.mode || (source === 'catalogue' ? 'catalogue' : 'draft'),
+      overrideOf: item.overrideOf || null,
     };
+  }
+
+  function createRemovedInventoryCard(item, tombstone) {
+    const card = document.createElement('article');
+    card.className = 'inventory-item inventory-item--removed';
+    card.dataset.category = item.category;
+    card.dataset.mode = 'removed';
+
+    const header = document.createElement('header');
+    header.className = 'inventory-item__header';
+    const title = document.createElement('h4');
+    title.textContent = item.name || tombstone?.name || item.catalogueId || 'Hidden item';
+    header.appendChild(title);
+
+    const badge = document.createElement('span');
+    badge.className = 'inventory-badge inventory-badge--removed';
+    badge.textContent = 'Hidden locally';
+    header.appendChild(badge);
+    card.appendChild(header);
+
+    const meta = document.createElement('p');
+    meta.className = 'inventory-item__description';
+    meta.textContent =
+      'This listing is hidden from the live storefront. Restore it to make it visible again.';
+    card.appendChild(meta);
+
+    const actions = document.createElement('div');
+    actions.className = 'inventory-item__actions';
+
+    const restoreButton = document.createElement('button');
+    restoreButton.type = 'button';
+    restoreButton.className = 'inventory-item__btn';
+    restoreButton.textContent = 'Restore item';
+    restoreButton.addEventListener('click', () => {
+      const confirmed = window.confirm('Restore this item to the storefront?');
+      if (!confirmed) return;
+      const catalogueId = item.catalogueId || item.id || tombstone?.overrideOf;
+      const restored =
+        window.productStore && typeof window.productStore.restoreCatalogueItem === 'function'
+          ? window.productStore.restoreCatalogueItem(catalogueId)
+          : false;
+      if (restored) {
+        renderInventory();
+        showInventoryFeedback(`Restored “${item.name}” to the storefront.`, 'success');
+      }
+    });
+    actions.appendChild(restoreButton);
+
+    card.appendChild(actions);
+    return card;
   }
 
   function loadInventoryData() {
@@ -337,6 +391,9 @@
     card.className = 'inventory-item';
     card.dataset.category = item.category;
     card.dataset.source = item.source || 'catalogue';
+    if (item.mode) {
+      card.dataset.mode = item.mode;
+    }
 
     const header = document.createElement('header');
     header.className = 'inventory-item__header';
@@ -346,12 +403,18 @@
 
     const badge = document.createElement('span');
     badge.className = 'inventory-badge';
-    if (item.source === 'custom') {
+    const statusLabel = item.statusLabel ||
+      (item.mode === 'override'
+        ? 'Override (local)'
+        : item.mode === 'draft'
+        ? 'Draft (local)'
+        : 'Published');
+    if (item.mode === 'draft') {
       badge.classList.add('inventory-badge--draft');
-      badge.textContent = 'Draft (local)';
-    } else {
-      badge.textContent = 'Published';
+    } else if (item.mode === 'override') {
+      badge.classList.add('inventory-badge--override');
     }
+    badge.textContent = statusLabel;
     header.appendChild(badge);
     card.appendChild(header);
 
@@ -389,19 +452,79 @@
       actions.appendChild(viewButton);
     }
 
-    if (item.source === 'custom' && window.productStore && typeof window.productStore.removeProduct === 'function') {
+    const editButton = document.createElement('button');
+    editButton.type = 'button';
+    editButton.className = 'inventory-item__btn';
+    editButton.textContent = 'Edit item';
+    editButton.addEventListener('click', () => {
+      populateInventoryForm(item);
+    });
+    actions.appendChild(editButton);
+
+    if (item.mode === 'draft' && window.productStore && typeof window.productStore.removeProduct === 'function') {
       const removeButton = document.createElement('button');
       removeButton.type = 'button';
       removeButton.className = 'inventory-item__btn inventory-item__btn--danger';
-      removeButton.textContent = 'Remove draft';
+      removeButton.textContent = 'Delete draft';
       removeButton.addEventListener('click', () => {
-        const removed = window.productStore.removeProduct(item.id);
+        const confirmed = window.confirm(`Delete the draft “${item.name}”? This cannot be undone.`);
+        if (!confirmed) return;
+        const removed = window.productStore.removeProduct(item.storeId || item.id);
         if (removed) {
           renderInventory();
-          showInventoryFeedback(`Removed draft item “${item.name}”.`, 'success');
+          showInventoryFeedback(`Deleted draft item “${item.name}”.`, 'success');
+          resetInventoryForm();
         }
       });
       actions.appendChild(removeButton);
+    }
+
+    if (item.mode === 'override' && window.productStore && typeof window.productStore.removeCatalogueOverride === 'function') {
+      const revertButton = document.createElement('button');
+      revertButton.type = 'button';
+      revertButton.className = 'inventory-item__btn inventory-item__btn--secondary';
+      revertButton.textContent = 'Revert to published';
+      revertButton.addEventListener('click', () => {
+        const confirmed = window.confirm(
+          `Remove local edits for “${item.name}” and restore the published version?`
+        );
+        if (!confirmed) return;
+        const reverted = window.productStore.removeCatalogueOverride(item.catalogueId || item.id);
+        if (reverted) {
+          renderInventory();
+          showInventoryFeedback(`Restored published version of “${item.name}”.`, 'success');
+          resetInventoryForm();
+        }
+      });
+      actions.appendChild(revertButton);
+    }
+
+    if (item.mode === 'catalogue' && window.productStore && typeof window.productStore.markCatalogueRemoved === 'function') {
+      const hideButton = document.createElement('button');
+      hideButton.type = 'button';
+      hideButton.className = 'inventory-item__btn inventory-item__btn--danger';
+      hideButton.textContent = 'Hide from storefront';
+      hideButton.addEventListener('click', () => {
+        const confirmed = window.confirm(
+          `Hide “${item.name}” from the storefront? You can restore it later from the admin panel.`
+        );
+        if (!confirmed) return;
+        try {
+          window.productStore.markCatalogueRemoved(item.catalogueId || item.id, {
+            name: item.name,
+            category: item.category,
+            unitLabel: item.unitLabel,
+            price: item.price,
+          });
+          renderInventory();
+          showInventoryFeedback(`Hidden “${item.name}” from the storefront.`, 'success');
+          resetInventoryForm();
+        } catch (error) {
+          console.error('Failed to hide catalogue item', error);
+          showInventoryFeedback('Unable to hide this item. Please try again.', 'error');
+        }
+      });
+      actions.appendChild(hideButton);
     }
 
     if (actions.childElementCount) {
@@ -411,7 +534,7 @@
     return card;
   }
 
-  function renderInventoryForCategory(category) {
+  function renderInventoryForCategory(category, storeState) {
     const container = document.querySelector(`[data-inventory-list="${category}"]`);
     if (!container) return;
     container.innerHTML = '';
@@ -425,19 +548,93 @@
       return;
     }
 
-    const catalogueItems = (inventoryState.data[category] || [])
-      .map((item) => sanitizeInventoryItem(item, category, 'catalogue'))
-      .filter(Boolean);
-    const customItems =
-      window.productStore && typeof window.productStore.getCustomProductsByCategory === 'function'
-        ? (window.productStore.getCustomProductsByCategory(category) || [])
-            .map((item) => sanitizeInventoryItem(item, category, 'custom'))
-            .filter(Boolean)
-        : [];
+    const catalogueItems = (inventoryState.data[category] || []).filter(Boolean);
+    const storeSnapshot = storeState || { drafts: [], overrides: [], removed: [] };
+    const overrides = new Map(
+      (storeSnapshot.overrides || [])
+        .filter((item) => (item.category || '').toLowerCase() === category.toLowerCase())
+        .map((item) => [item.overrideOf, item])
+    );
+    const removed = new Map(
+      (storeSnapshot.removed || [])
+        .filter((item) => (item.category || '').toLowerCase() === category.toLowerCase())
+        .map((item) => [item.overrideOf, item])
+    );
+    const drafts = (storeSnapshot.drafts || []).filter(
+      (item) => (item.category || '').toLowerCase() === category.toLowerCase()
+    );
 
-    const combined = [...catalogueItems, ...customItems];
+    const combined = [];
+    const removedCards = [];
 
-    if (!combined.length) {
+    catalogueItems.forEach((catalogueItem) => {
+      const base = sanitizeInventoryItem(
+        {
+          ...catalogueItem,
+          mode: 'catalogue',
+          storeId: null,
+          overrideOf: null,
+        },
+        category,
+        'catalogue'
+      );
+      if (!base) return;
+      base.catalogueId = base.id;
+      base.mode = 'catalogue';
+
+      if (removed.has(base.id)) {
+        removedCards.push(createRemovedInventoryCard(base, removed.get(base.id)));
+        return;
+      }
+
+      if (overrides.has(base.id)) {
+        const override = overrides.get(base.id);
+        const merged = sanitizeInventoryItem(
+          {
+            ...base,
+            ...override,
+            id: base.id,
+            images: override.images && override.images.length ? override.images : base.images,
+            mode: 'override',
+            storeId: override.id,
+            overrideOf: base.id,
+          },
+          category,
+          'override'
+        );
+        if (merged) {
+          merged.catalogueId = base.id;
+          merged.storeId = override.id;
+          merged.mode = 'override';
+          merged.statusLabel = 'Override (local)';
+          combined.push(merged);
+        }
+        return;
+      }
+
+      base.statusLabel = 'Published';
+      combined.push(base);
+    });
+
+    drafts.forEach((draft) => {
+      const sanitized = sanitizeInventoryItem(
+        {
+          ...draft,
+          storeId: draft.id,
+          mode: 'draft',
+        },
+        category,
+        'custom'
+      );
+      if (sanitized) {
+        sanitized.storeId = draft.id;
+        sanitized.mode = 'draft';
+        sanitized.statusLabel = 'Draft (local)';
+        combined.push(sanitized);
+      }
+    });
+
+    if (!combined.length && !removedCards.length) {
       const empty = document.createElement('p');
       empty.className = 'product-empty';
       empty.textContent = `No ${category.toLowerCase()} items available yet.`;
@@ -448,19 +645,149 @@
     combined.forEach((item) => {
       container.appendChild(createInventoryCard(item));
     });
+
+    removedCards.forEach((card) => {
+      container.appendChild(card);
+    });
   }
 
   function renderInventory() {
+    const storeState =
+      window.productStore && typeof window.productStore.getInventoryState === 'function'
+        ? window.productStore.getInventoryState()
+        : { drafts: [], overrides: [], removed: [] };
     Object.keys(INVENTORY_SOURCES).forEach((category) => {
-      renderInventoryForCategory(category);
+      renderInventoryForCategory(category, storeState);
     });
+  }
+
+  function getInventoryFormElements() {
+    const form = document.querySelector('[data-inventory-form]');
+    if (!form) return null;
+    return {
+      form,
+      category: form.querySelector('select[name="category"]'),
+      name: form.querySelector('input[name="name"]'),
+      price: form.querySelector('input[name="price"]'),
+      unit: form.querySelector('input[name="unit"]'),
+      description: form.querySelector('textarea[name="description"]'),
+      imageInput: form.querySelector('input[name="images"]'),
+      imageUrls: form.querySelector('textarea[name="imageUrls"]'),
+      submit: form.querySelector('button[type="submit"]'),
+      mode: form.querySelector('[data-inventory-editor-mode]'),
+      storeId: form.querySelector('[data-inventory-product-id]'),
+      catalogueId: form.querySelector('[data-inventory-catalogue-id]'),
+      editingBanner: form.querySelector('[data-inventory-editing-banner]'),
+      editingLabel: form.querySelector('[data-inventory-editing-label]'),
+      cancelEdit: form.querySelector('[data-inventory-cancel-edit]'),
+    };
+  }
+
+  function setInventoryFormState(state) {
+    const refs = getInventoryFormElements();
+    if (!refs) return;
+    const modeValue = state?.mode || '';
+    const name = state?.name || '';
+    const modeLabel =
+      modeValue === 'catalogue'
+        ? 'Published item'
+        : modeValue === 'override'
+        ? 'Published override'
+        : modeValue === 'draft'
+        ? 'Draft item'
+        : '';
+
+    if (refs.mode) {
+      refs.mode.value = modeValue;
+    }
+    if (refs.storeId) {
+      refs.storeId.value = state?.storeId || '';
+    }
+    if (refs.catalogueId) {
+      refs.catalogueId.value = state?.catalogueId || '';
+    }
+
+    if (refs.submit) {
+      refs.submit.textContent = modeValue ? 'Save changes' : 'Save draft item';
+    }
+
+    if (refs.editingBanner && refs.editingLabel) {
+      if (modeValue) {
+        refs.editingBanner.hidden = false;
+        refs.editingLabel.textContent = name
+          ? `Editing “${name}” (${modeLabel || 'Item'})`
+          : 'Editing catalogue item';
+      } else {
+        refs.editingBanner.hidden = true;
+        refs.editingLabel.textContent = '';
+      }
+    }
+  }
+
+  function resetInventoryForm() {
+    const refs = getInventoryFormElements();
+    if (!refs) return;
+    const selectedCategory = refs.category?.value || 'Groceries';
+    refs.form.reset();
+    if (refs.category) {
+      refs.category.value = selectedCategory;
+    }
+    if (refs.imageInput) {
+      refs.imageInput.value = '';
+    }
+    if (refs.imageUrls) {
+      refs.imageUrls.value = '';
+    }
+    setInventoryFormState(null);
+  }
+
+  function populateInventoryForm(item) {
+    const refs = getInventoryFormElements();
+    if (!refs || !item) return;
+    const mode = item.mode === 'catalogue' ? 'catalogue' : item.mode || 'draft';
+    const catalogueId =
+      mode === 'catalogue' ? item.catalogueId || item.id : item.catalogueId || null;
+
+    if (refs.category) {
+      refs.category.value = item.category || refs.category.value || 'Groceries';
+    }
+    if (refs.name) {
+      refs.name.value = item.name || '';
+    }
+    if (refs.price) {
+      refs.price.value = Number(item.price || 0);
+    }
+    if (refs.unit) {
+      refs.unit.value = item.unitLabel || '';
+    }
+    if (refs.description) {
+      refs.description.value = item.description || '';
+    }
+    if (refs.imageInput) {
+      refs.imageInput.value = '';
+    }
+    if (refs.imageUrls) {
+      refs.imageUrls.value = (item.images || []).join('\n');
+    }
+
+    setInventoryFormState({
+      mode,
+      storeId: mode === 'draft' || mode === 'override' ? item.storeId || item.id : '',
+      catalogueId: catalogueId || '',
+      name: item.name,
+    });
+
+    showInventoryFeedback(
+      `Editing “${item.name}”. Save your changes or cancel to discard edits.`,
+      'success'
+    );
   }
 
   function showInventoryFeedback(message, state = 'success') {
     const feedback = document.querySelector('[data-inventory-feedback]');
     if (!feedback) return;
     feedback.textContent = message;
-    feedback.classList.remove('error', 'success');
+    feedback.classList.remove('error', 'success', 'info');
     feedback.classList.add(state === 'error' ? 'error' : 'success');
   }
 
@@ -480,6 +807,10 @@
 
   function handleInventorySubmit(form) {
     const formData = new FormData(form);
+    const refs = getInventoryFormElements();
+    const mode = refs?.mode?.value || '';
+    const editingId = refs?.storeId?.value || '';
+    const catalogueId = refs?.catalogueId?.value || '';
     const category = (formData.get('category') || 'Groceries').toString();
     const name = (formData.get('name') || '').toString().trim();
     const priceRaw = formData.get('price');
@@ -488,6 +819,11 @@
     const description = (formData.get('description') || '').toString().trim();
     const fileInput = form.querySelector('input[name="images"]');
     const files = fileInput?.files ? Array.from(fileInput.files) : [];
+    const imageUrlsRaw = refs?.imageUrls?.value || '';
+    const imageUrls = imageUrlsRaw
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
 
     if (!name) {
       showInventoryFeedback('Please provide a product name before saving.', 'error');
@@ -500,7 +836,18 @@
     }
 
     if (files.length > MAX_UPLOAD_IMAGES) {
-      showInventoryFeedback(`Please upload a maximum of ${MAX_UPLOAD_IMAGES} images per item.`, 'error');
+      showInventoryFeedback(
+        `Please upload a maximum of ${MAX_UPLOAD_IMAGES} images per item.`,
+        'error'
+      );
+      return;
+    }
+
+    if (imageUrls.length > MAX_UPLOAD_IMAGES) {
+      showInventoryFeedback(
+        `Please provide up to ${MAX_UPLOAD_IMAGES} image URLs per item.`,
+        'error'
+      );
       return;
     }
 
@@ -508,30 +855,53 @@
 
     imagePromise
       .then((images) => {
+        const combined = [];
+        [...imageUrls, ...images].forEach((src) => {
+          const value = (src || '').toString();
+          if (value && !combined.includes(value)) {
+            combined.push(value);
+          }
+        });
+        const limitedImages = combined.slice(0, MAX_UPLOAD_IMAGES);
         const payload = {
           category,
           name,
           price,
           unitLabel,
           description,
-          images,
+          images: limitedImages,
         };
-        const saved = window.productStore.addProduct(payload);
-        showInventoryFeedback(`Saved draft item “${saved.name}”.`, 'success');
+        let saved;
+        let message = '';
+
+        if (mode === 'draft' && editingId) {
+          saved = window.productStore.updateProduct(editingId, payload);
+          message = `Updated draft item “${saved.name}”.`;
+        } else if (mode === 'override' && editingId) {
+          saved = window.productStore.updateProduct(editingId, {
+            ...payload,
+            mode: 'override',
+          });
+          message = `Updated local override for “${saved.name}”.`;
+        } else if (mode === 'catalogue' && catalogueId) {
+          saved = window.productStore.overrideCatalogueProduct(catalogueId, payload);
+          message = `Saved local edits for “${saved.name}”.`;
+        } else {
+          saved = window.productStore.addProduct(payload);
+          message = `Saved draft item “${saved.name}”.`;
+        }
+
+        showInventoryFeedback(message, 'success');
         renderInventory();
 
         const previewWrapper = document.querySelector('[data-inventory-preview]');
         const previewCode = document.querySelector('[data-inventory-json]');
-        if (previewWrapper && previewCode) {
+        if (previewWrapper && previewCode && saved) {
           previewCode.textContent = JSON.stringify(saved, null, 2);
           previewWrapper.hidden = false;
         }
 
-        const categorySelect = form.querySelector('select[name="category"]');
-        form.reset();
-        if (categorySelect) {
-          categorySelect.value = category;
-        }
+        resetInventoryForm();
       })
       .catch((error) => {
         console.error('Failed to process inventory item', error);
@@ -552,9 +922,153 @@
       return;
     }
 
+    resetInventoryForm();
+
+    const refs = getInventoryFormElements();
+    if (refs?.cancelEdit) {
+      refs.cancelEdit.addEventListener('click', () => {
+        resetInventoryForm();
+        showInventoryFeedback('Editing cancelled. No changes were saved.', 'success');
+      });
+    }
+
     form.addEventListener('submit', (event) => {
       event.preventDefault();
       handleInventorySubmit(form);
+    });
+  }
+
+  function getApiConfig() {
+    const config = window.adminApiConfig || {};
+    const baseUrlRaw = (config.baseUrl || '').toString().trim();
+    const baseUrl = baseUrlRaw.endsWith('/') ? baseUrlRaw.slice(0, -1) : baseUrlRaw;
+    return {
+      baseUrl,
+      authToken: (config.authToken || '').toString().trim(),
+      extraHeaders:
+        config.extraHeaders && typeof config.extraHeaders === 'object'
+          ? { ...config.extraHeaders }
+          : {},
+    };
+  }
+
+  function setSyncFeedback(message, state = 'info') {
+    const feedback = document.querySelector('[data-inventory-sync-feedback]');
+    if (!feedback) return;
+    feedback.textContent = message;
+    feedback.classList.remove('error', 'success', 'info');
+    if (state === 'success') {
+      feedback.classList.add('success');
+    } else if (state === 'error') {
+      feedback.classList.add('error');
+    } else {
+      feedback.classList.add('info');
+    }
+  }
+
+  function normalizeItemForSync(item, { status = 'PUBLISHED' } = {}) {
+    if (!item) return null;
+    const images = Array.isArray(item.images) ? item.images.slice(0, MAX_UPLOAD_IMAGES) : [];
+    return {
+      id: item.overrideOf || item.id,
+      sourceId: item.id,
+      name: item.name,
+      description: item.description || '',
+      category: item.category,
+      price: Number(item.price) || 0,
+      unitLabel: item.unitLabel || item.unit || '',
+      images,
+      status,
+      updatedAt: item.updatedAt || new Date().toISOString(),
+    };
+  }
+
+  function buildSyncPayload() {
+    const storeState =
+      window.productStore && typeof window.productStore.getInventoryState === 'function'
+        ? window.productStore.getInventoryState()
+        : { overrides: [], drafts: [], removed: [] };
+
+    const published = Object.entries(inventoryState.data || {}).flatMap(([categoryName, items]) =>
+      (Array.isArray(items) ? items : [])
+        .map((item) => normalizeItemForSync({ ...item, category: categoryName }, { status: 'PUBLISHED' }))
+        .filter(Boolean)
+    );
+
+    const overrides = (storeState.overrides || [])
+      .map((item) => normalizeItemForSync(item, { status: 'PUBLISHED_OVERRIDE' }))
+      .filter(Boolean);
+
+    const drafts = (storeState.drafts || [])
+      .map((item) => normalizeItemForSync(item, { status: 'DRAFT' }))
+      .filter(Boolean);
+
+    const removed = (storeState.removed || []).map((item) => ({
+      id: item.overrideOf || item.id,
+      category: item.category,
+      deletedAt: item.deletedAt || new Date().toISOString(),
+    }));
+
+    return { published, overrides, drafts, removed };
+  }
+
+  function handleInventorySync(button) {
+    const config = getApiConfig();
+    if (!config.baseUrl) {
+      setSyncFeedback('Set scripts/config.js with your API Gateway baseUrl before syncing.', 'error');
+      return;
+    }
+
+    const payload = buildSyncPayload();
+    setSyncFeedback('Sync in progress…', 'info');
+    if (button) {
+      button.disabled = true;
+    }
+
+    const headers = {
+      'Content-Type': 'application/json',
+      ...config.extraHeaders,
+    };
+    if (config.authToken) {
+      headers.Authorization = config.authToken.startsWith('Bearer ')
+        ? config.authToken
+        : `Bearer ${config.authToken}`;
+    }
+
+    fetch(`${config.baseUrl}${SYNC_ENDPOINT}`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`Sync failed with status ${response.status}`);
+        }
+        return response.json().catch(() => ({}));
+      })
+      .then(() => {
+        setSyncFeedback('Sync complete! DynamoDB now mirrors your dashboard changes.', 'success');
+      })
+      .catch((error) => {
+        console.error('Inventory sync failed', error);
+        setSyncFeedback('Sync failed. Check your API configuration and AWS logs.', 'error');
+      })
+      .finally(() => {
+        if (button) {
+          button.disabled = false;
+        }
+      });
+  }
+
+  function setupInventorySync() {
+    const button = document.querySelector('[data-inventory-sync]');
+    if (!button) return;
+    const config = getApiConfig();
+    if (!config.baseUrl) {
+      setSyncFeedback('Sync is disabled until you add your API Gateway URL to scripts/config.js.', 'info');
+    }
+    button.addEventListener('click', () => {
+      handleInventorySync(button);
     });
   }
 
@@ -568,6 +1082,7 @@
       });
 
     setupInventoryForm();
+    setupInventorySync();
 
     if (window.productStore && typeof window.productStore.subscribe === 'function') {
       window.productStore.subscribe(() => {

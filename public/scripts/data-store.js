@@ -19,7 +19,14 @@
       if (!Array.isArray(parsed)) return [];
       return parsed
         .filter((item) => item && typeof item === 'object')
-        .map((item) => sanitizeProduct(item, { category: item.category || 'Groceries', source: 'custom', skipPersist: true }));
+        .map((item) =>
+          sanitizeProduct(item, {
+            category: item.category || 'Groceries',
+            source: item.source || 'custom',
+            skipPersist: true,
+          })
+        )
+        .filter(Boolean);
     } catch (error) {
       console.error('Failed to load custom products from storage', error);
       return [];
@@ -76,25 +83,48 @@
     return unique.slice(0, MAX_IMAGES);
   }
 
-  function sanitizeProduct(product, { category = 'Groceries', source = 'custom', skipPersist = false } = {}) {
+  function sanitizeProduct(
+    product,
+    { category = 'Groceries', source = 'custom', skipPersist = false } = {}
+  ) {
     if (!product || typeof product !== 'object') return null;
+    const baseCategory = (product.category || category || 'Groceries').toString();
+    const modeRaw = (product.mode || (product.overrideOf ? 'override' : 'draft')).toString();
+    const mode = ['draft', 'override', 'tombstone'].includes(modeRaw)
+      ? modeRaw
+      : 'draft';
+    const overrideOf = product.overrideOf ? product.overrideOf.toString() : null;
+
     const images = sanitizeImages([
       product.image,
       ...(Array.isArray(product.images) ? product.images : []),
     ]);
+
     const cleaned = {
-      id: product.id || `${slugify(product.name || category)}-${Date.now()}`,
+      id: product.id || `${slugify(product.name || baseCategory)}-${Date.now()}`,
       name: (product.name || '').toString().trim(),
       description: (product.description || '').toString().trim(),
       price: Number(product.price) || 0,
       unitLabel: (product.unitLabel || product.unit || '').toString().trim(),
-      category,
+      category: baseCategory,
       source,
       images,
       image: images[0] || null,
       createdAt: product.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      mode,
+      overrideOf,
+      deletedAt: null,
     };
+
+    if (mode === 'tombstone') {
+      cleaned.deletedAt = product.deletedAt || new Date().toISOString();
+      cleaned.name = cleaned.name || (overrideOf ? `Removed item ${overrideOf}` : 'Removed item');
+      cleaned.images = [];
+      cleaned.image = null;
+      return cleaned;
+    }
+
     if (!cleaned.name) {
       return null;
     }
@@ -105,16 +135,22 @@
   }
 
   function getCustomProducts() {
-    return customProducts.map((item) => ({
-      ...item,
-      images: item.images ? item.images.slice() : [],
-    }));
+    return customProducts
+      .filter((item) => item.mode !== 'tombstone')
+      .map((item) => ({
+        ...item,
+        images: item.images ? item.images.slice() : [],
+      }));
   }
 
   function getCustomProductsByCategory(category) {
     if (!category) return getCustomProducts();
     const match = category.toString().toLowerCase();
-    return getCustomProducts().filter((item) => (item.category || '').toString().toLowerCase() === match);
+    return getCustomProducts().filter(
+      (item) =>
+        (item.category || '').toString().toLowerCase() === match &&
+        item.mode !== 'tombstone'
+    );
   }
 
   function addProduct(product) {
@@ -131,6 +167,8 @@
       {
         ...product,
         id: idCandidate,
+        category,
+        mode: product.mode || 'draft',
       },
       { category, source: 'custom' }
     );
@@ -141,12 +179,156 @@
     return sanitized;
   }
 
+  function updateProduct(id, updates) {
+    if (!id) {
+      throw new Error('A product id is required to update.');
+    }
+    const index = customProducts.findIndex((item) => item.id === id);
+    if (index === -1) {
+      throw new Error(`No product found with id ${id}`);
+    }
+    const existing = customProducts[index];
+    const category = updates.category || existing.category || 'Groceries';
+    const sanitized = sanitizeProduct(
+      {
+        ...existing,
+        ...updates,
+        id,
+        category,
+        mode: existing.mode,
+        overrideOf: existing.overrideOf,
+        createdAt: existing.createdAt,
+      },
+      { category, source: existing.source || 'custom' }
+    );
+    if (!sanitized) {
+      throw new Error('Invalid product update payload.');
+    }
+    customProducts[index] = sanitized;
+    persistCustomProducts(customProducts.slice());
+    return sanitized;
+  }
+
+  function overrideCatalogueProduct(catalogueId, product) {
+    if (!catalogueId) {
+      throw new Error('A catalogue id is required to create an override.');
+    }
+    const existingIndex = customProducts.findIndex(
+      (item) => item.mode === 'override' && item.overrideOf === catalogueId
+    );
+    const baseCategory = product.category || customProducts[existingIndex]?.category || 'Groceries';
+    const basePayload = {
+      id:
+        existingIndex > -1
+          ? customProducts[existingIndex].id
+          : `override-${slugify(catalogueId)}-${Date.now()}`,
+      overrideOf: catalogueId,
+      mode: 'override',
+      category: baseCategory,
+      createdAt: existingIndex > -1 ? customProducts[existingIndex].createdAt : undefined,
+    };
+    const sanitized = sanitizeProduct(
+      {
+        ...basePayload,
+        ...product,
+        category: baseCategory,
+        source: 'custom',
+      },
+      { category: baseCategory, source: 'custom' }
+    );
+    if (!sanitized) {
+      throw new Error('Invalid override payload.');
+    }
+    if (existingIndex > -1) {
+      customProducts[existingIndex] = sanitized;
+    } else {
+      customProducts.push(sanitized);
+    }
+    persistCustomProducts(customProducts.slice());
+    return sanitized;
+  }
+
   function removeProduct(id) {
     if (!id) return false;
     const next = customProducts.filter((item) => item.id !== id);
     if (next.length === customProducts.length) return false;
     persistCustomProducts(next);
     return true;
+  }
+
+  function removeCatalogueOverride(catalogueId) {
+    if (!catalogueId) return false;
+    const next = customProducts.filter(
+      (item) => !(item.mode === 'override' && item.overrideOf === catalogueId)
+    );
+    const changed = next.length !== customProducts.length;
+    if (changed) {
+      persistCustomProducts(next);
+    }
+    return changed;
+  }
+
+  function markCatalogueRemoved(catalogueId, metadata = {}) {
+    if (!catalogueId) {
+      throw new Error('A catalogue id is required to remove an item.');
+    }
+    const existingIndex = customProducts.findIndex(
+      (item) => item.mode === 'tombstone' && item.overrideOf === catalogueId
+    );
+    const baseCategory = metadata.category || customProducts[existingIndex]?.category || 'Groceries';
+    const payload = {
+      id:
+        existingIndex > -1
+          ? customProducts[existingIndex].id
+          : `removed-${slugify(catalogueId)}-${Date.now()}`,
+      overrideOf: catalogueId,
+      mode: 'tombstone',
+      category: baseCategory,
+      name: metadata.name || customProducts[existingIndex]?.name || catalogueId,
+      unitLabel: metadata.unitLabel || customProducts[existingIndex]?.unitLabel || '',
+      price: metadata.price || customProducts[existingIndex]?.price || 0,
+      createdAt: existingIndex > -1 ? customProducts[existingIndex].createdAt : undefined,
+      deletedAt: new Date().toISOString(),
+    };
+    const sanitized = sanitizeProduct(payload, {
+      category: baseCategory,
+      source: 'custom',
+    });
+    if (!sanitized) {
+      throw new Error('Unable to mark catalogue item as removed.');
+    }
+    if (existingIndex > -1) {
+      customProducts[existingIndex] = sanitized;
+    } else {
+      customProducts.push(sanitized);
+    }
+    persistCustomProducts(customProducts.slice());
+    return sanitized;
+  }
+
+  function restoreCatalogueItem(catalogueId) {
+    if (!catalogueId) return false;
+    const next = customProducts.filter(
+      (item) => !(item.mode === 'tombstone' && item.overrideOf === catalogueId)
+    );
+    const changed = next.length !== customProducts.length;
+    if (changed) {
+      persistCustomProducts(next);
+    }
+    return changed;
+  }
+
+  function getInventoryState() {
+    const snapshot = customProducts.map((item) => ({
+      ...item,
+      images: item.images ? item.images.slice() : [],
+    }));
+    return {
+      items: snapshot,
+      drafts: snapshot.filter((item) => item.mode === 'draft'),
+      overrides: snapshot.filter((item) => item.mode === 'override'),
+      removed: snapshot.filter((item) => item.mode === 'tombstone'),
+    };
   }
 
   function subscribe(listener) {
@@ -284,9 +466,15 @@
     getCustomProducts,
     getCustomProductsByCategory,
     addProduct,
+    updateProduct,
     removeProduct,
+    overrideCatalogueProduct,
+    removeCatalogueOverride,
+    markCatalogueRemoved,
+    restoreCatalogueItem,
+    getInventoryState,
     subscribe,
-    toJSON: () => getCustomProducts(),
+    toJSON: () => getCustomProducts(true),
   };
 
   window.productGallery = {
