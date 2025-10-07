@@ -67,15 +67,12 @@ Resources:
       CorsConfiguration:
         CorsRules:
           - AllowedHeaders:
-              - "*"
+              ["*"]
             AllowedMethods:
-              - GET
-              - PUT
-              - HEAD
-            AllowedOrigins:
-              - !Split [ ",", !Ref AllowedOrigins ]
+             [GET, PUT, POST, HEAD]
+            AllowedOrigins: !Split [ ",", !Ref AllowedOrigins ]
             ExposedHeaders:
-              - ETag
+              [ETag]
             MaxAge: 3600
 
   ProductsFunction:
