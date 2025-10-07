@@ -21,7 +21,7 @@ Parameters:
     Description: API Gateway deployment stage.
   AllowedOrigins:
     Type: String
-    Default: "*"
+    Default: "https://main.d1orae4bhxx3yj.amplifyapp.com/"
     Description: Comma separated list of origins allowed to call the API. 
   SignedUrlExpiry:
     Type: Number
@@ -36,7 +36,7 @@ Resources:
       Cors:
         AllowHeaders: "content-type,authorization,x-api-key"
         AllowMethods: "OPTIONS,GET,POST,PUT,DELETE"
-        AllowOrigins: !Ref AllowedOrigins
+        AllowOrigin: !Ref AllowedOrigins
         MaxAge: 3600
       MethodSettings:
         - ResourcePath: "/*"
@@ -73,7 +73,7 @@ Resources:
               - PUT
               - HEAD
             AllowedOrigins:
-              - !Ref AllowedOrigins
+              - !Split [ ",", !Ref AllowedOrigins ]
             ExposedHeaders:
               - ETag
             MaxAge: 3600
