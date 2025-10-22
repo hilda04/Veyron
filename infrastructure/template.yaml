@@ -12,7 +12,7 @@ Globals:
         TABLE_NAME: !Ref ProductsTable
         BUCKET_NAME: !Ref ProductImagesBucket
         URL_EXPIRY_SECONDS: !Ref SignedUrlExpiry
-        ALLOWED_ORIGINS: !Ref AllowedOrigins
+        ALLOWED_ORIGINS: !Ref AllowedOriginsList
 
 Parameters:
   StageName:
@@ -152,7 +152,7 @@ Resources:
           ORDER_RECIPIENT: !Ref OrderRecipientEmail
           ORDER_SENDER: !Ref OrderSenderEmail
           ORDER_SEND_CUSTOMER_COPY: !Ref OrderSendCustomerCopy
-          ALLOWED_ORIGINS: !Ref AllowedOrigins
+          ALLOWED_ORIGINS: !Ref AllowedOriginsList
           SES_REGION: !Ref AWS::Region
       Events:
         SubmitOrder:
