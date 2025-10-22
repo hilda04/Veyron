@@ -71,6 +71,21 @@
     );
   }
 
+  function generateProductId(name, category) {
+    const base = slugify(name || category || 'item');
+    const existing = new Set(customProducts.map((item) => item.id));
+    if (!existing.has(base)) {
+      return base;
+    }
+    let counter = 1;
+    let candidate = `${base}-${counter}`;
+    while (existing.has(candidate)) {
+      counter += 1;
+      candidate = `${base}-${counter}`;
+    }
+    return candidate;
+  }
+
   function sanitizeImages(rawImages) {
     const unique = [];
     (Array.isArray(rawImages) ? rawImages : [rawImages]).forEach((image) => {
@@ -156,12 +171,27 @@
   function addProduct(product) {
     const category = (product.category || 'Groceries').toString();
     const baseId = slugify(product.name || category);
-    let idCandidate = baseId;
-    let counter = 1;
+    const providedId = (product.id || '').toString().trim();
+    let idCandidate = providedId || baseId;
     const existing = new Set(customProducts.map((item) => item.id));
-    while (existing.has(idCandidate)) {
-      idCandidate = `${baseId}-${counter}`;
-      counter += 1;
+    if (existing.has(idCandidate)) {
+      if (!providedId) {
+        let counter = 1;
+        let candidate = `${baseId}-${counter}`;
+        while (existing.has(candidate)) {
+          counter += 1;
+          candidate = `${baseId}-${counter}`;
+        }
+        idCandidate = candidate;
+      } else {
+        let counter = 1;
+        let candidate = `${idCandidate}-${counter}`;
+        while (existing.has(candidate)) {
+          counter += 1;
+          candidate = `${idCandidate}-${counter}`;
+        }
+        idCandidate = candidate;
+      }
     }
     const sanitized = sanitizeProduct(
       {
@@ -474,6 +504,7 @@
     restoreCatalogueItem,
     getInventoryState,
     subscribe,
+    generateProductId,
     toJSON: () => getCustomProducts(true),
   };
 

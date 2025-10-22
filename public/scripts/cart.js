@@ -167,18 +167,51 @@
     });
   }
 
+  function focusDrawer() {
+    const drawer = document.querySelector('[data-cart-drawer]');
+    if (!drawer) return;
+    const panel = drawer.querySelector('.cart-panel');
+    const focusTarget = panel || drawer;
+    if (panel && !panel.hasAttribute('tabindex')) {
+      panel.setAttribute('tabindex', '-1');
+    } else if (!panel && !drawer.hasAttribute('tabindex')) {
+      drawer.setAttribute('tabindex', '-1');
+    }
+    if (focusTarget && typeof focusTarget.focus === 'function') {
+      try {
+        focusTarget.focus({ preventScroll: true });
+      } catch (error) {
+        focusTarget.focus();
+      }
+    }
+  }
+
   function openDrawer() {
     const drawer = document.querySelector('[data-cart-drawer]');
     if (!drawer) return;
     drawer.classList.add('open');
     drawer.setAttribute('aria-hidden', 'false');
+    focusDrawer();
   }
 
-  function closeDrawer() {
+  function closeDrawer({ restoreFocus = true } = {}) {
     const drawer = document.querySelector('[data-cart-drawer]');
     if (!drawer) return;
     drawer.classList.remove('open');
     drawer.setAttribute('aria-hidden', 'true');
+    if (restoreFocus) {
+      const toggle = document.querySelector('[data-toggle-cart]');
+      if (toggle && typeof toggle.focus === 'function') {
+        toggle.focus();
+      }
+    }
+  }
+
+  function handleDrawerKeydown(event) {
+    if (event.key === 'Escape' || event.key === 'Esc') {
+      event.preventDefault();
+      closeDrawer();
+    }
   }
 
   function setupDrawer() {
@@ -190,7 +223,7 @@
       toggle.addEventListener('click', () => {
         const isOpen = drawer?.classList.contains('open');
         if (isOpen) {
-          closeDrawer();
+          closeDrawer({ restoreFocus: false });
         } else {
           openDrawer();
         }
@@ -198,10 +231,13 @@
     }
 
     if (close) {
-      close.addEventListener('click', closeDrawer);
+      close.addEventListener('click', () => {
+        closeDrawer();
+      });
     }
 
     if (drawer) {
+      drawer.addEventListener('keydown', handleDrawerKeydown);
       drawer.addEventListener('click', (event) => {
         if (event.target === drawer) {
           closeDrawer();

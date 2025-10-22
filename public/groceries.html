@@ -55,7 +55,8 @@
           <select aria-label="Sort groceries" data-product-sort>
             <option value="default">Sort by</option>
             <option value="az">Name A–Z</option>
-            <option value="za">Name Z-A</option>
+            <option value="price-asc">Price: Low to High</option>
+            <option value="price-desc">Price: High to Low</option>
           </select>
         </div>
         <div class="product-grid" data-product-grid></div>
@@ -128,7 +129,7 @@
     <script>
       window.shopConfig = {
         category: 'Groceries',
-        dataUrl: 'data/groceries.json',
+        fallbackDataUrl: 'data/groceries.json',
         pageSize: 8,
       };
     </script>

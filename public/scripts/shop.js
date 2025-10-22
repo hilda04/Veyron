@@ -37,6 +37,28 @@
     return sources.slice(0, MAX_IMAGES);
   }
 
+  function normalizeApiProduct(item, category) {
+    if (!item) return null;
+    if (item.ProductId || item.Category || item.Images) {
+      const images = Array.isArray(item.Images)
+        ? item.Images.filter(Boolean).map((src) => src.toString())
+        : Array.isArray(item.images)
+        ? item.images.filter(Boolean).map((src) => src.toString())
+        : [];
+      return {
+        id: item.ProductId || item.id || null,
+        name: item.Name || item.name || '',
+        description: item.Description || item.description || '',
+        price: Number(typeof item.Price !== 'undefined' ? item.Price : item.price) || 0,
+        unitLabel: item.UnitLabel || item.unitLabel || '',
+        images,
+        image: images[0] || item.image || null,
+        category: item.Category || item.category || category,
+      };
+    }
+    return item;
+  }
+
   function sanitizeItems(rawItems, category, source) {
     if (!Array.isArray(rawItems)) return [];
     return rawItems
@@ -59,37 +81,69 @@
       });
   }
 
-  function createImageButton(item) {
+  function createImageCarousel(item) {
     const images = collectImages(item);
     if (!images.length) return null;
+    let index = 0;
 
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'product-image';
-    button.setAttribute('aria-label', `View images of ${item.name}`);
+    const container = document.createElement('div');
+    container.className = 'image-carousel';
 
+    const viewport = document.createElement('button');
+    viewport.type = 'button';
+    viewport.className = 'image-carousel__viewport';
+    viewport.setAttribute('aria-label', `View images of ${item.name}`);
     const img = document.createElement('img');
     img.src = images[0];
     img.alt = '';
-    button.appendChild(img);
+    viewport.appendChild(img);
+    viewport.addEventListener('click', () => {
+      if (window.productGallery && typeof window.productGallery.open === 'function') {
+        window.productGallery.open(images, item.name);
+      }
+    });
+    container.appendChild(viewport);
+
+    const controls = document.createElement('div');
+    controls.className = 'image-carousel__controls';
+    const counter = document.createElement('span');
+    counter.className = 'image-carousel__counter';
+    counter.textContent = `${Math.min(index + 1, images.length)} / ${images.length}`;
+    controls.appendChild(counter);
 
     if (images.length > 1) {
-      const badge = document.createElement('span');
-      badge.className = 'product-image__badge';
-      badge.textContent = `${images.length} photos`;
-      button.appendChild(badge);
-    }
+      const prev = document.createElement('button');
+      prev.type = 'button';
+      prev.className = 'image-carousel__nav image-carousel__nav--prev';
+      prev.setAttribute('aria-label', 'Show previous photo');
+      prev.textContent = '‹';
 
-    if (window.productGallery && typeof window.productGallery.open === 'function') {
-      button.addEventListener('click', () => {
-        window.productGallery.open(images, item.name);
+      const next = document.createElement('button');
+      next.type = 'button';
+      next.className = 'image-carousel__nav image-carousel__nav--next';
+      next.setAttribute('aria-label', 'Show next photo');
+      next.textContent = '›';
+
+      function update(newIndex) {
+        index = (newIndex + images.length) % images.length;
+        img.src = images[index];
+        counter.textContent = `${index + 1} / ${images.length}`;
+      }
+
+      prev.addEventListener('click', () => {
+        update(index - 1);
       });
-    } else {
-      button.disabled = true;
-      button.title = 'Image preview unavailable in this browser.';
+
+      next.addEventListener('click', () => {
+        update(index + 1);
+      });
+
+      controls.insertBefore(prev, counter);
+      controls.appendChild(next);
     }
 
-    return button;
+    container.appendChild(controls);
+    return container;
   }
 
   function renderProducts(container, items, category) {
@@ -108,9 +162,9 @@
       card.className = 'product-card';
       card.dataset.productId = item.id;
 
-      const imageButton = createImageButton(item);
-      if (imageButton) {
-        card.appendChild(imageButton);
+      const imageCarousel = createImageCarousel(item);
+      if (imageCarousel) {
+        card.appendChild(imageCarousel);
       }
 
       const title = document.createElement('h3');
@@ -176,7 +230,18 @@
     const sortSelect = document.querySelector('[data-product-sort]');
     const pagination = document.querySelector('[data-pagination]');
 
-    const { category, dataUrl } = window.shopConfig;
+    const { category } = window.shopConfig;
+    const fallbackDataUrl =
+      window.shopConfig.fallbackDataUrl ||
+      window.shopConfig.dataUrl ||
+      window.shopConfig.dataURL ||
+      '';
+    const explicitApiUrl = window.shopConfig.apiUrl || window.shopConfig.apiURL;
+    const apiBaseUrl =
+      explicitApiUrl ||
+      (window.siteConfig && window.siteConfig.apiBaseUrl) ||
+      (window.shopConfig && window.shopConfig.apiBaseUrl) ||
+      '';
     const initialItems = sanitizeItems(window.shopConfig.items || [], category, 'catalogue');
     const pageSize = Math.max(1, Number(window.shopConfig.pageSize) || 12);
 
@@ -319,6 +384,10 @@
 
       if (sortValue === 'az') {
         filtered = filtered.slice().sort((a, b) => a.name.localeCompare(b.name));
+      } else if (sortValue === 'price-asc') {
+        filtered = filtered.slice().sort((a, b) => a.price - b.price);
+      } else if (sortValue === 'price-desc') {
+        filtered = filtered.slice().sort((a, b) => b.price - a.price);
       }
 
       filteredItems = filtered;
@@ -344,7 +413,16 @@
       sortSelect.addEventListener('change', () => applyFilters({ resetPage: true }));
     }
 
-    if (dataUrl) {
+    const remoteUrl = (() => {
+      if (!apiBaseUrl) return '';
+      if (apiBaseUrl.includes('?')) {
+        return apiBaseUrl;
+      }
+      const trimmed = apiBaseUrl.endsWith('/') ? apiBaseUrl.slice(0, -1) : apiBaseUrl;
+      return `${trimmed}/products?category=${encodeURIComponent(category)}`;
+    })();
+
+    if (remoteUrl || fallbackDataUrl) {
       if (grid) {
         const loading = document.createElement('div');
         loading.className = 'product-empty';
@@ -357,30 +435,65 @@
         pagination.hidden = true;
       }
 
-      fetch(dataUrl)
-        .then((response) => {
-          if (!response.ok) throw new Error(`Request failed with status ${response.status}`);
-          return response.json();
-        })
-        .then((data) => {
-          if (!Array.isArray(data)) {
-            throw new Error('Unexpected data format');
-          }
-          remoteItems = sanitizeItems(data, category, 'catalogue');
+      const sources = [];
+      if (remoteUrl) {
+        sources.push({ url: remoteUrl, type: 'remote' });
+      }
+      if (fallbackDataUrl && fallbackDataUrl !== remoteUrl) {
+        sources.push({ url: fallbackDataUrl, type: 'fallback' });
+      }
+
+      const fetchSequentially = (index = 0) => {
+        if (index >= sources.length) {
+          remoteItems = initialItems.slice();
           rebuildBaseItems({ resetPage: true });
-        })
-        .catch((error) => {
-          console.error('Failed to load catalogue data', error);
-          remoteItems = [];
-          rebuildBaseItems({ resetPage: true });
-          if (grid) {
+          if (grid && !remoteItems.length) {
             grid.innerHTML = '';
-            const failure = document.createElement('div');
-            failure.className = 'product-empty';
-            failure.textContent = 'Unable to load products right now. Please refresh to try again.';
-            grid.appendChild(failure);
+            const empty = document.createElement('div');
+            empty.className = 'product-empty';
+            empty.textContent = 'No products available right now. Please check back soon.';
+            grid.appendChild(empty);
           }
-        });
+          return;
+        }
+
+        const { url, type } = sources[index];
+        fetch(url)
+          .then((response) => {
+            if (!response.ok) throw new Error(`Request failed with status ${response.status}`);
+            return response.json();
+          })
+          .then((payload) => {
+            const rawItems = Array.isArray(payload?.items)
+              ? payload.items
+              : Array.isArray(payload)
+              ? payload
+              : [];
+            const normalised = rawItems
+              .map((item) => normalizeApiProduct(item, category))
+              .filter(Boolean);
+            remoteItems = sanitizeItems(normalised, category, 'catalogue');
+            rebuildBaseItems({ resetPage: true });
+          })
+          .catch((error) => {
+            console.error(`Failed to load catalogue from ${url}`, error);
+            if (type === 'remote') {
+              fetchSequentially(index + 1);
+            } else {
+              remoteItems = initialItems.slice();
+              rebuildBaseItems({ resetPage: true });
+              if (grid) {
+                grid.innerHTML = '';
+                const failure = document.createElement('div');
+                failure.className = 'product-empty';
+                failure.textContent = 'Unable to load products right now. Please refresh to try again.';
+                grid.appendChild(failure);
+              }
+            }
+          });
+      };
+
+      fetchSequentially();
     } else {
       rebuildBaseItems({ resetPage: true });
     }

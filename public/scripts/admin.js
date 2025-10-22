@@ -9,11 +9,14 @@
 
   let orders = [];
   const INVENTORY_SOURCES = {
-    Furniture: 'data/furniture.json',
-    Groceries: 'data/groceries.json',
+    Furniture: { fallback: 'data/furniture.json' },
+    Groceries: { fallback: 'data/groceries.json' },
   };
   const MAX_UPLOAD_IMAGES = 5;
+  const INVENTORY_PAGE_SIZE = 5;
   const SYNC_ENDPOINT = '/sync';
+  const IMAGE_UPLOAD_ENDPOINT = (category, id) =>
+    `/products/${encodeURIComponent(category)}/${encodeURIComponent(id)}/images`;
   const inventoryState = {
     data: {
       Furniture: [],
@@ -22,6 +25,19 @@
     errors: {
       Furniture: null,
       Groceries: null,
+    },
+    searchTerm: '',
+    displayLimit: {
+      Furniture: INVENTORY_PAGE_SIZE,
+      Groceries: INVENTORY_PAGE_SIZE,
+    },
+    totals: {
+      Furniture: 0,
+      Groceries: 0,
+    },
+    hasMore: {
+      Furniture: false,
+      Groceries: false,
     },
   };
 
@@ -363,27 +379,201 @@
     return card;
   }
 
+  function normalizeApiInventoryItem(item, category) {
+    if (!item) return null;
+    const normalisedCategory = (item.Category || item.category || category || '').toString();
+    const priceValue = typeof item.Price !== 'undefined' ? item.Price : item.price;
+    const images = Array.isArray(item.Images)
+      ? item.Images.filter(Boolean).map((src) => src.toString())
+      : Array.isArray(item.images)
+      ? item.images.filter(Boolean).map((src) => src.toString())
+      : [];
+    const uniqueImages = Array.from(new Set(images));
+    return {
+      id: item.ProductId || item.id || null,
+      name: (item.Name || item.name || '').toString(),
+      description: (item.Description || item.description || '').toString(),
+      price: Number(priceValue) || 0,
+      unitLabel: (item.UnitLabel || item.unitLabel || '').toString(),
+      images: uniqueImages,
+      image: uniqueImages[0] || item.image || null,
+      category: normalisedCategory,
+      source: 'catalogue',
+      updatedAt: item.UpdatedAt || item.updatedAt || new Date().toISOString(),
+      statusLabel: item.Status || 'Published',
+    };
+  }
+
+  function extractInventoryPayload(payload) {
+    if (Array.isArray(payload)) {
+      return payload;
+    }
+    if (payload && Array.isArray(payload.items)) {
+      return payload.items;
+    }
+    if (payload && Array.isArray(payload.data)) {
+      return payload.data;
+    }
+    return [];
+  }
+
+  function resetInventoryDisplay(category) {
+    inventoryState.displayLimit[category] = INVENTORY_PAGE_SIZE;
+    inventoryState.hasMore[category] = false;
+    inventoryState.totals[category] = 0;
+  }
+
+  function resetAllInventoryDisplays() {
+    Object.keys(INVENTORY_SOURCES).forEach((category) => {
+      resetInventoryDisplay(category);
+    });
+  }
+
+  function matchesInventorySearch(item, term) {
+    if (!term) return true;
+    const haystack = [item.name, item.description, item.unitLabel]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+    return haystack.includes(term);
+  }
+
   function loadInventoryData() {
-    const loaders = Object.entries(INVENTORY_SOURCES).map(([category, url]) =>
-      fetch(url)
-        .then((response) => {
-          if (!response.ok) {
-            throw new Error(`Request for ${category} failed with status ${response.status}`);
-          }
-          return response.json();
-        })
-        .then((data) => {
-          inventoryState.data[category] = Array.isArray(data) ? data : [];
-          inventoryState.errors[category] = null;
-        })
-        .catch((error) => {
-          console.error(`Failed to load inventory for ${category}`, error);
+    const config = getApiConfig();
+    const baseUrl = config.baseUrl;
+    const loaders = Object.entries(INVENTORY_SOURCES).map(([category, source]) => {
+      const fallbackUrl = source?.fallback || '';
+      const remoteUrl = baseUrl
+        ? `${baseUrl}/products?category=${encodeURIComponent(category)}`
+        : '';
+      const urls = [remoteUrl, fallbackUrl].filter((value) => value && value.length);
+
+      if (!urls.length) {
+        inventoryState.data[category] = [];
+        inventoryState.errors[category] =
+          'No data source configured. Provide an API URL or a fallback JSON file.';
+        return Promise.resolve();
+      }
+
+      const attemptFetch = (index = 0, lastError = null) => {
+        if (index >= urls.length) {
+          console.error(`Failed to load inventory for ${category}`, lastError);
           inventoryState.data[category] = [];
           inventoryState.errors[category] =
-            'Unable to load catalogue data. Update the JSON file or check your connection.';
-        })
-    );
-    return Promise.all(loaders);
+            'Unable to load catalogue data. Check your API configuration or fallback files.';
+          return Promise.resolve();
+        }
+        const url = urls[index];
+        return fetch(url)
+          .then((response) => {
+            if (!response.ok) {
+              throw new Error(`Request for ${category} failed with status ${response.status}`);
+            }
+            return response.json();
+          })
+          .then((payload) => {
+            const rawItems = extractInventoryPayload(payload);
+            const normalised = rawItems
+              .map((item) => normalizeApiInventoryItem(item, category))
+              .map((item) =>
+                sanitizeInventoryItem(
+                  {
+                    ...item,
+                    id: item?.id,
+                    mode: 'catalogue',
+                  },
+                  category,
+                  'catalogue'
+                )
+              )
+              .filter(Boolean);
+            inventoryState.data[category] = normalised;
+            inventoryState.errors[category] = null;
+          })
+          .catch((error) => {
+            if (index + 1 < urls.length) {
+              return attemptFetch(index + 1, error);
+            }
+            console.error(`Failed to load inventory for ${category}`, error);
+            inventoryState.data[category] = [];
+            inventoryState.errors[category] =
+              'Unable to load catalogue data. Check your API configuration or fallback files.';
+          });
+      };
+
+      return attemptFetch();
+    });
+
+    return Promise.all(loaders).then(() => {
+      resetAllInventoryDisplays();
+    });
+  }
+
+  function createImageCarousel(images, title) {
+    const sources = Array.isArray(images) ? images.filter(Boolean) : [];
+    if (!sources.length) return null;
+    let index = 0;
+
+    const container = document.createElement('div');
+    container.className = 'image-carousel';
+
+    const viewport = document.createElement('button');
+    viewport.type = 'button';
+    viewport.className = 'image-carousel__viewport';
+    if (title) {
+      viewport.setAttribute('aria-label', `View images of ${title}`);
+    }
+    const img = document.createElement('img');
+    img.src = sources[0];
+    img.alt = '';
+    viewport.appendChild(img);
+    viewport.addEventListener('click', () => {
+      if (window.productGallery && typeof window.productGallery.open === 'function') {
+        window.productGallery.open(sources, title || 'Product image');
+      }
+    });
+    container.appendChild(viewport);
+
+    const controls = document.createElement('div');
+    controls.className = 'image-carousel__controls';
+    const counter = document.createElement('span');
+    counter.className = 'image-carousel__counter';
+    counter.textContent = `${Math.min(index + 1, sources.length)} / ${sources.length}`;
+    controls.appendChild(counter);
+
+    if (sources.length > 1) {
+      const prev = document.createElement('button');
+      prev.type = 'button';
+      prev.className = 'image-carousel__nav image-carousel__nav--prev';
+      prev.setAttribute('aria-label', 'Show previous image');
+      prev.textContent = '‹';
+
+      const next = document.createElement('button');
+      next.type = 'button';
+      next.className = 'image-carousel__nav image-carousel__nav--next';
+      next.setAttribute('aria-label', 'Show next image');
+      next.textContent = '›';
+
+      function update(newIndex) {
+        index = (newIndex + sources.length) % sources.length;
+        img.src = sources[index];
+        counter.textContent = `${index + 1} / ${sources.length}`;
+      }
+
+      prev.addEventListener('click', () => {
+        update(index - 1);
+      });
+
+      next.addEventListener('click', () => {
+        update(index + 1);
+      });
+
+      controls.insertBefore(prev, counter);
+      controls.appendChild(next);
+    }
+
+    container.appendChild(controls);
+    return container;
   }
 
   function createInventoryCard(item) {
@@ -418,6 +608,12 @@
     header.appendChild(badge);
     card.appendChild(header);
 
+    const carousel = createImageCarousel(item.images, item.name);
+    if (carousel) {
+      carousel.classList.add('inventory-item__carousel');
+      card.appendChild(carousel);
+    }
+
     const meta = document.createElement('p');
     meta.className = 'inventory-item__meta';
     const unit = item.unitLabel ? `<span>${item.unitLabel}</span>` : '';
@@ -431,21 +627,19 @@
       card.appendChild(description);
     }
 
-    if (item.images && item.images.length) {
-      const galleryNote = document.createElement('p');
-      galleryNote.className = 'inventory-item__gallery-note';
-      galleryNote.textContent = `${item.images.length} image${item.images.length === 1 ? '' : 's'} available.`;
-      card.appendChild(galleryNote);
-    }
-
     const actions = document.createElement('div');
     actions.className = 'inventory-item__actions';
 
-    if (item.images && item.images.length && window.productGallery && typeof window.productGallery.open === 'function') {
+    if (
+      item.images &&
+      item.images.length &&
+      window.productGallery &&
+      typeof window.productGallery.open === 'function'
+    ) {
       const viewButton = document.createElement('button');
       viewButton.type = 'button';
       viewButton.className = 'inventory-item__btn';
-      viewButton.textContent = item.images.length > 1 ? 'View gallery' : 'View image';
+      viewButton.textContent = item.images.length > 1 ? 'Open full gallery' : 'View image';
       viewButton.addEventListener('click', () => {
         window.productGallery.open(item.images, item.name);
       });
@@ -548,6 +742,10 @@
       return;
     }
 
+    if (!inventoryState.displayLimit[category]) {
+      resetInventoryDisplay(category);
+    }
+
     const catalogueItems = (inventoryState.data[category] || []).filter(Boolean);
     const storeSnapshot = storeState || { drafts: [], overrides: [], removed: [] };
     const overrides = new Map(
@@ -634,17 +832,41 @@
       }
     });
 
-    if (!combined.length && !removedCards.length) {
+    const term = (inventoryState.searchTerm || '').toString().toLowerCase();
+    const filtered = combined
+      .filter((item) => matchesInventorySearch(item, term))
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+
+    const displayLimit = Math.max(
+      INVENTORY_PAGE_SIZE,
+      inventoryState.displayLimit[category] || INVENTORY_PAGE_SIZE
+    );
+    const visibleCount = Math.min(displayLimit, filtered.length);
+    const visibleItems = filtered.slice(0, visibleCount);
+
+    inventoryState.totals[category] = filtered.length;
+    inventoryState.hasMore[category] = visibleCount < filtered.length;
+
+    if (!visibleItems.length && !removedCards.length) {
       const empty = document.createElement('p');
       empty.className = 'product-empty';
-      empty.textContent = `No ${category.toLowerCase()} items available yet.`;
+      empty.textContent = term
+        ? `No ${category.toLowerCase()} items match “${inventoryState.searchTerm}”.`
+        : `No ${category.toLowerCase()} items available yet.`;
       container.appendChild(empty);
       return;
     }
 
-    combined.forEach((item) => {
+    visibleItems.forEach((item) => {
       container.appendChild(createInventoryCard(item));
     });
+
+    if (inventoryState.hasMore[category]) {
+      const hint = document.createElement('p');
+      hint.className = 'inventory-load-hint';
+      hint.textContent = 'Scroll to load more items…';
+      container.appendChild(hint);
+    }
 
     removedCards.forEach((card) => {
       container.appendChild(card);
@@ -658,6 +880,62 @@
         : { drafts: [], overrides: [], removed: [] };
     Object.keys(INVENTORY_SOURCES).forEach((category) => {
       renderInventoryForCategory(category, storeState);
+    });
+  }
+
+  function handleInventoryScroll(event) {
+    const container = event.currentTarget;
+    const category = container?.dataset?.inventoryList;
+    if (!category) return;
+    if (!inventoryState.hasMore[category]) return;
+
+    const rawThreshold = container.scrollHeight - container.clientHeight - 48;
+    if (rawThreshold <= 0) {
+      if (inventoryState.hasMore[category]) {
+        const currentLimit = Math.max(
+          INVENTORY_PAGE_SIZE,
+          inventoryState.displayLimit[category] || INVENTORY_PAGE_SIZE
+        );
+        const totalItems = inventoryState.totals[category] || 0;
+        const nextLimit = Math.min(totalItems, currentLimit + INVENTORY_PAGE_SIZE);
+        if (nextLimit > currentLimit) {
+          inventoryState.displayLimit[category] = nextLimit;
+          renderInventory();
+        }
+      }
+      return;
+    }
+    const threshold = Math.max(0, rawThreshold);
+    if (container.scrollTop >= threshold) {
+      const currentLimit = Math.max(
+        INVENTORY_PAGE_SIZE,
+        inventoryState.displayLimit[category] || INVENTORY_PAGE_SIZE
+      );
+      const totalItems = inventoryState.totals[category] || 0;
+      const nextLimit = Math.min(totalItems, currentLimit + INVENTORY_PAGE_SIZE);
+      if (nextLimit > currentLimit) {
+        inventoryState.displayLimit[category] = nextLimit;
+        renderInventory();
+      }
+    }
+  }
+
+  function setupInventoryScroll() {
+    const containers = document.querySelectorAll('[data-inventory-list]');
+    containers.forEach((container) => {
+      container.addEventListener('scroll', handleInventoryScroll, { passive: true });
+    });
+  }
+
+  function setupInventorySearch() {
+    const input = document.querySelector('[data-inventory-search]');
+    if (!input) return;
+    input.addEventListener('input', () => {
+      inventoryState.searchTerm = input.value.trim();
+      Object.keys(INVENTORY_SOURCES).forEach((category) => {
+        resetInventoryDisplay(category);
+      });
+      renderInventory();
     });
   }
 
@@ -788,24 +1066,77 @@
     if (!feedback) return;
     feedback.textContent = message;
     feedback.classList.remove('error', 'success', 'info');
-    feedback.classList.add(state === 'error' ? 'error' : 'success');
+    if (state === 'error') {
+      feedback.classList.add('error');
+    } else if (state === 'info') {
+      feedback.classList.add('info');
+    } else {
+      feedback.classList.add('success');
+    }
   }
 
-  function readImageFiles(files) {
-    return Promise.all(
-      files.map(
-        (file) =>
-          new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result);
-            reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
-            reader.readAsDataURL(file);
-          })
-      )
-    );
+  function buildAuthorisedHeaders(config) {
+    const headers = {
+      ...(config.extraHeaders || {}),
+    };
+    if (config.authToken) {
+      headers.Authorization = config.authToken.startsWith('Bearer ')
+        ? config.authToken
+        : `Bearer ${config.authToken}`;
+    }
+    return headers;
   }
 
-  function handleInventorySubmit(form) {
+  function requestImageUpload(config, category, productId, file) {
+    const headers = {
+      'Content-Type': 'application/json',
+      ...buildAuthorisedHeaders(config),
+    };
+    return fetch(`${config.baseUrl}${IMAGE_UPLOAD_ENDPOINT(category, productId)}`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        fileName: file.name,
+        contentType: file.type || 'image/jpeg',
+      }),
+    }).then((response) => {
+      if (!response.ok) {
+        throw new Error(`Upload URL request failed with status ${response.status}`);
+      }
+      return response.json();
+    });
+  }
+
+  function uploadFileToS3(uploadUrl, file) {
+    return fetch(uploadUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': file.type || 'application/octet-stream',
+      },
+      body: file,
+    }).then((response) => {
+      if (!response.ok) {
+        throw new Error(`S3 upload failed with status ${response.status}`);
+      }
+      return response;
+    });
+  }
+
+  async function uploadInventoryFiles(files, { category, productId, config }) {
+    if (!files.length) return [];
+    if (!config.baseUrl) {
+      throw new Error('API base URL is required to upload images.');
+    }
+    const uploads = [];
+    for (const file of files) {
+      const { uploadUrl, publicUrl } = await requestImageUpload(config, category, productId, file);
+      await uploadFileToS3(uploadUrl, file);
+      uploads.push(publicUrl);
+    }
+    return uploads;
+  }
+
+  async function handleInventorySubmit(form) {
     const formData = new FormData(form);
     const refs = getInventoryFormElements();
     const mode = refs?.mode?.value || '';
@@ -851,62 +1182,101 @@
       return;
     }
 
-    const imagePromise = files.length ? readImageFiles(files.slice(0, MAX_UPLOAD_IMAGES)) : Promise.resolve([]);
+    const config = getApiConfig();
+    const limitedFiles = files.slice(0, MAX_UPLOAD_IMAGES);
 
-    imagePromise
-      .then((images) => {
-        const combined = [];
-        [...imageUrls, ...images].forEach((src) => {
-          const value = (src || '').toString();
-          if (value && !combined.includes(value)) {
-            combined.push(value);
-          }
-        });
-        const limitedImages = combined.slice(0, MAX_UPLOAD_IMAGES);
-        const payload = {
+    if (limitedFiles.length && !config.baseUrl) {
+      showInventoryFeedback(
+        'Configure your API base URL before uploading product images.',
+        'error'
+      );
+      return;
+    }
+
+    let targetId = '';
+    if (mode === 'catalogue' && catalogueId) {
+      targetId = catalogueId;
+    } else if ((mode === 'draft' || mode === 'override') && editingId) {
+      targetId = editingId;
+    } else if (
+      window.productStore &&
+      typeof window.productStore.generateProductId === 'function'
+    ) {
+      targetId = window.productStore.generateProductId(name, category);
+    } else {
+      targetId = `${category.toLowerCase()}-${Date.now()}`;
+    }
+
+    let uploadedUrls = [];
+    try {
+      if (limitedFiles.length) {
+        showInventoryFeedback('Uploading images…', 'info');
+        uploadedUrls = await uploadInventoryFiles(limitedFiles, {
           category,
-          name,
-          price,
-          unitLabel,
-          description,
-          images: limitedImages,
-        };
-        let saved;
-        let message = '';
+          productId: targetId,
+          config,
+        });
+      }
+    } catch (error) {
+      console.error('Image upload failed', error);
+      showInventoryFeedback('Unable to upload product images. Please try again.', 'error');
+      return;
+    }
 
-        if (mode === 'draft' && editingId) {
-          saved = window.productStore.updateProduct(editingId, payload);
-          message = `Updated draft item “${saved.name}”.`;
-        } else if (mode === 'override' && editingId) {
-          saved = window.productStore.updateProduct(editingId, {
-            ...payload,
-            mode: 'override',
-          });
-          message = `Updated local override for “${saved.name}”.`;
-        } else if (mode === 'catalogue' && catalogueId) {
-          saved = window.productStore.overrideCatalogueProduct(catalogueId, payload);
-          message = `Saved local edits for “${saved.name}”.`;
-        } else {
-          saved = window.productStore.addProduct(payload);
-          message = `Saved draft item “${saved.name}”.`;
-        }
+    const combined = [];
+    [...imageUrls, ...uploadedUrls].forEach((src) => {
+      const value = (src || '').toString();
+      if (value && !combined.includes(value)) {
+        combined.push(value);
+      }
+    });
+    const limitedImages = combined.slice(0, MAX_UPLOAD_IMAGES);
+    const payload = {
+      category,
+      name,
+      price,
+      unitLabel,
+      description,
+      images: limitedImages,
+    };
 
-        showInventoryFeedback(message, 'success');
-        renderInventory();
+    let saved;
+    let message = '';
+    try {
+      if (mode === 'draft' && editingId) {
+        saved = window.productStore.updateProduct(editingId, payload);
+        message = `Updated draft item “${saved.name}”.`;
+      } else if (mode === 'override' && editingId) {
+        saved = window.productStore.updateProduct(editingId, {
+          ...payload,
+          mode: 'override',
+        });
+        message = `Updated local override for “${saved.name}”.`;
+      } else if (mode === 'catalogue' && catalogueId) {
+        saved = window.productStore.overrideCatalogueProduct(catalogueId, payload);
+        message = `Saved local edits for “${saved.name}”.`;
+      } else {
+        saved = window.productStore.addProduct({ ...payload, id: targetId });
+        message = `Saved draft item “${saved.name}”.`;
+      }
+    } catch (error) {
+      console.error('Failed to persist inventory item', error);
+      showInventoryFeedback('Unable to save this item. Please try again.', 'error');
+      return;
+    }
 
-        const previewWrapper = document.querySelector('[data-inventory-preview]');
-        const previewCode = document.querySelector('[data-inventory-json]');
-        if (previewWrapper && previewCode && saved) {
-          previewCode.textContent = JSON.stringify(saved, null, 2);
-          previewWrapper.hidden = false;
-        }
+    showInventoryFeedback(message, 'success');
+    resetInventoryDisplay(category);
+    renderInventory();
 
-        resetInventoryForm();
-      })
-      .catch((error) => {
-        console.error('Failed to process inventory item', error);
-        showInventoryFeedback('Unable to save this item. Please try again.', 'error');
-      });
+    const previewWrapper = document.querySelector('[data-inventory-preview]');
+    const previewCode = document.querySelector('[data-inventory-json]');
+    if (previewWrapper && previewCode && saved) {
+      previewCode.textContent = JSON.stringify(saved, null, 2);
+      previewWrapper.hidden = false;
+    }
+
+    resetInventoryForm();
   }
 
   function setupInventoryForm() {
@@ -1072,7 +1442,63 @@
     });
   }
 
+  function setupAdminTabs() {
+    const tabs = document.querySelectorAll('[data-admin-tab]');
+    const sections = document.querySelectorAll('[data-admin-section]');
+    if (!tabs.length || !sections.length) return;
+
+    function activateTab(tabId) {
+      const resolvedTab = tabId || tabs[0].dataset.adminTab;
+      sections.forEach((section) => {
+        const isActive = section.dataset.adminSection === resolvedTab;
+        section.hidden = !isActive;
+        section.classList.toggle('is-active', isActive);
+        section.setAttribute('aria-hidden', isActive ? 'false' : 'true');
+      });
+      tabs.forEach((tab) => {
+        const isActive = tab.dataset.adminTab === resolvedTab;
+        tab.classList.toggle('is-active', isActive);
+        tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        tab.setAttribute('tabindex', isActive ? '0' : '-1');
+      });
+    }
+
+    tabs.forEach((tab) => {
+      tab.addEventListener('click', () => {
+        const target = tab.dataset.adminTab;
+        if (!target) return;
+        if (window.location.hash !== `#${target}`) {
+          window.location.hash = target;
+        } else {
+          activateTab(target);
+        }
+      });
+      tab.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          tab.click();
+        }
+      });
+    });
+
+    const initialHash = window.location.hash.replace('#', '');
+    if (initialHash) {
+      activateTab(initialHash);
+    } else {
+      activateTab(tabs[0].dataset.adminTab);
+    }
+
+    window.addEventListener('hashchange', () => {
+      const hash = window.location.hash.replace('#', '');
+      if (hash) {
+        activateTab(hash);
+      }
+    });
+  }
+
   function initializeInventory() {
+    setupInventorySearch();
+    setupInventoryScroll();
     loadInventoryData()
       .catch((error) => {
         console.error('Inventory load failed', error);
@@ -1096,6 +1522,7 @@
     const searchInput = document.querySelector('[data-admin-search]');
     const statusFilter = document.querySelector('[data-status-filter]');
 
+    setupAdminTabs();
     if (searchInput) {
       searchInput.addEventListener('input', renderOrders);
     }
