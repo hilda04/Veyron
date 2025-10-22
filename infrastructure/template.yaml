@@ -19,9 +19,13 @@ Parameters:
     Type: String
     Default: prod
     Description: API Gateway deployment stage.
-  AllowedOrigins:
+  AllowedOriginSingle:
     Type: String
-    Default: "https://main.d1orae4bhxx3yj.amplifyapp.com/"
+    Default: "https://main.d1orae4bhxx3yj.amplifyapp.com"
+    Description: Comma separated list of origins allowed to call the API.
+  AllowedOriginsList:
+    Type: CommaDelimitedList
+    Default: "https://main.d1orae4bhxx3yj.amplifyapp.com"
     Description: Comma separated list of origins allowed to call the API.
   SignedUrlExpiry:
     Type: Number
@@ -51,7 +55,7 @@ Resources:
       Cors:
         AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
         AllowHeaders: "'content-type,x-api-key,authorization'"
-        AllowOrigin: !Sub "'${AllowedOrigins}'"
+        AllowOrigin: !Sub "'${AllowedOriginSingle}'"
 
   ProductsTable:
     Type: AWS::DynamoDB::Table
@@ -75,7 +79,7 @@ Resources:
       BucketName: !Sub "${AWS::StackName}-product-images-${AWS::Region}-${AWS::AccountId}"
       CorsConfiguration:
         CorsRules:
-          - AllowedOrigins: !Split [ ",", !Ref AllowedOrigins ]
+          - AllowedOrigins: !Split [ ",", !Ref AllowedOriginsList ]
             AllowedMethods:
               - GET
               - PUT
