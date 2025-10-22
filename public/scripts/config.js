@@ -1,6 +1,7 @@
 (function () {
   const globalScope = typeof window !== 'undefined' ? window : globalThis;
   const STORAGE_KEY = 'veyron-admin-api-base-url';
+  const DEFAULT_BASE_URL = 'https://709vunsnn4.execute-api.us-east-1.amazonaws.com/prod';
 
   function normalizeUrl(value) {
     const trimmed = (value || '').toString().trim();
@@ -66,6 +67,7 @@
     extractFromObject(typeof process !== 'undefined' ? process.env : null),
     extractFromMeta(),
     extractStored(),
+    normalizeUrl(DEFAULT_BASE_URL),
   ].filter(Boolean);
 
   const resolvedBaseUrl = candidates.length ? candidates[0] : '';
