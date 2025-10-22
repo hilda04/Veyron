@@ -33,6 +33,7 @@ During the guided deploy you will be prompted for:
 - **Stack Name** – the CloudFormation stack identifier (default is `veyron-admin`).
 - **StageName** – the API Gateway stage (default `prod`).
 - **AllowedOrigins** – comma separated origins allowed to call the API (for local testing you can use `http://localhost:3000`).
+  Origins are normalised automatically so you can paste values with or without a trailing slash.
 - **SignedUrlExpiry** – validity window in seconds for generated S3 upload URLs (default 900 seconds).
 - **OrderRecipientEmail** – address that receives storefront order alerts (default `hildamachando4@gmail.com`). Ensure this
   address is verified in SES if your account is still in the sandbox.

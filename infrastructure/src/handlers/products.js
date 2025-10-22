@@ -10,16 +10,31 @@ const BUCKET_NAME = process.env.BUCKET_NAME;
 const URL_EXPIRY_SECONDS = Number(process.env.URL_EXPIRY_SECONDS || 900);
 const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS || '*';
 
+function normalizeOrigin(value) {
+  if (!value) return '';
+  const trimmed = value.toString().trim();
+  if (!trimmed) return '';
+  try {
+    const url = new URL(trimmed);
+    return `${url.protocol}//${url.host}`;
+  } catch (error) {
+    return trimmed.replace(/\/*$/, '');
+  }
+}
+
 function resolveOrigin(requestOrigin = '') {
   if (!ALLOWED_ORIGINS || ALLOWED_ORIGINS === '*') {
     return '*';
   }
-  const allowed = ALLOWED_ORIGINS.split(',').map((value) => value.trim()).filter(Boolean);
+  const allowed = ALLOWED_ORIGINS.split(',')
+    .map((value) => normalizeOrigin(value))
+    .filter(Boolean);
   if (!allowed.length) {
     return '*';
   }
-  if (requestOrigin && allowed.includes(requestOrigin)) {
-    return requestOrigin;
+  const normalisedRequest = normalizeOrigin(requestOrigin);
+  if (normalisedRequest && allowed.includes(normalisedRequest)) {
+    return normalisedRequest;
   }
   return allowed[0];
 }
