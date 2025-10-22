@@ -59,6 +59,8 @@
           <select aria-label="Sort furniture" data-product-sort>
             <option value="default">Sort by</option>
             <option value="az">Name A–Z</option>
+            <option value="price-asc">Price: Low to High</option>
+            <option value="price-desc">Price: High to Low</option>
           </select>
         </div>
         <div class="product-grid" data-product-grid data-layout="carousel"></div>
@@ -131,7 +133,7 @@
     <script>
       window.shopConfig = {
         category: 'Furniture',
-        dataUrl: 'data/furniture.json',
+        fallbackDataUrl: 'data/furniture.json',
         pageSize: 6,
       };
     </script>

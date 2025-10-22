@@ -1155,6 +1155,42 @@ textarea {
   background: #ffffff;
 }
 
+.admin-tabs {
+  display: inline-flex;
+  gap: 0.75rem;
+  margin: 3rem 0 2rem;
+  background: rgba(17, 17, 17, 0.05);
+  padding: 0.6rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(212, 175, 55, 0.2);
+}
+
+.admin-tabs__button {
+  border: none;
+  background: transparent;
+  padding: 0.65rem 1.4rem;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.admin-tabs__button.is-active,
+.admin-tabs__button[aria-selected='true'] {
+  background: var(--surface);
+  color: var(--brand-primary);
+  box-shadow: var(--shadow-soft);
+  transform: translateY(-1px);
+}
+
+.admin-tabs__button:focus-visible {
+  outline: 3px solid var(--brand-secondary);
+  outline-offset: 2px;
+}
+
 .admin-board {
   display: grid;
   gap: 1.5rem;
@@ -1304,9 +1340,42 @@ textarea {
   font-size: 0.9rem;
 }
 
+.inventory-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.inventory-toolbar input[type='search'] {
+  flex: 1 1 260px;
+  padding: 0.7rem 1rem;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  font-size: 1rem;
+  font-family: inherit;
+  background: #ffffff;
+}
+
+.inventory-toolbar__hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
 .inventory-items {
   display: grid;
   gap: 1rem;
+  max-height: 28rem;
+  overflow-y: auto;
+  padding-right: 0.35rem;
+}
+
+.inventory-items:focus-visible {
+  outline: 3px solid var(--brand-secondary);
+  outline-offset: 4px;
 }
 
 .inventory-item {
@@ -1316,6 +1385,10 @@ textarea {
   background: #ffffff;
   display: grid;
   gap: 0.75rem;
+}
+
+.inventory-item__carousel {
+  margin: -0.5rem;
 }
 
 .inventory-item__header {
@@ -1379,12 +1452,6 @@ textarea {
   font-size: 0.95rem;
 }
 
-.inventory-item__gallery-note {
-  margin: 0;
-  font-size: 0.85rem;
-  color: var(--text-muted);
-}
-
 .inventory-item__actions {
   display: flex;
   flex-wrap: wrap;
@@ -1423,6 +1490,71 @@ textarea {
   border-color: rgba(44, 120, 201, 0.4);
   background: rgba(44, 120, 201, 0.12);
   color: #1a4f8b;
+}
+
+.inventory-load-hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 0.25rem 0;
+}
+
+.image-carousel {
+  display: grid;
+  gap: 0.5rem;
+  background: rgba(17, 17, 17, 0.04);
+  border-radius: var(--radius-md);
+  padding: 0.5rem;
+}
+
+.image-carousel__viewport {
+  border: none;
+  background: #111;
+  border-radius: var(--radius-md);
+  padding: 0;
+  display: block;
+  cursor: pointer;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+}
+
+.image-carousel__viewport img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.image-carousel__controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.image-carousel__nav {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 999px;
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.image-carousel__nav:hover,
+.image-carousel__nav:focus {
+  background: rgba(212, 175, 55, 0.18);
+}
+
+.image-carousel__counter {
+  min-width: 3rem;
+  text-align: center;
 }
 
 .inventory-item__btn--secondary:hover,

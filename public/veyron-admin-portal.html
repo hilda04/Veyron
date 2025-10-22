@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Order Admin | Veyron Enterprises</title>
+    <meta name="vite-api-base-url" content="" data-env-key="VITE_API_BASE_URL" />
     <meta
       name="description"
       content="Internal order dashboard for Veyron Enterprises to review, triage and complete customer requests."
@@ -41,7 +42,38 @@
         </p>
       </section>
 
-      <section class="section">
+      <div class="admin-tabs" role="tablist" aria-label="Management views">
+        <button
+          type="button"
+          class="admin-tabs__button"
+          data-admin-tab="orders"
+          role="tab"
+          aria-selected="true"
+          aria-controls="orders-panel"
+          id="orders-tab"
+        >
+          Order administration
+        </button>
+        <button
+          type="button"
+          class="admin-tabs__button"
+          data-admin-tab="inventory"
+          role="tab"
+          aria-selected="false"
+          aria-controls="inventory-panel"
+          id="inventory-tab"
+        >
+          Inventory catalogue
+        </button>
+      </div>
+
+      <section
+        class="section admin-section"
+        id="orders-panel"
+        data-admin-section="orders"
+        role="tabpanel"
+        aria-labelledby="orders-tab"
+      >
         <div class="admin-toolbar">
           <input type="search" placeholder="Search by customer or product" aria-label="Search orders" data-admin-search />
           <select aria-label="Filter orders by status" data-status-filter>
@@ -56,7 +88,15 @@
         </div>
       </section>
 
-      <section class="section">
+      <section
+        class="section admin-section"
+        id="inventory-panel"
+        data-admin-section="inventory"
+        hidden
+        aria-hidden="true"
+        role="tabpanel"
+        aria-labelledby="inventory-tab"
+      >
         <div class="section-heading">
           <h2>Inventory Catalogue</h2>
           <p>
@@ -65,13 +105,23 @@
           </p>
         </div>
 
+        <div class="inventory-toolbar">
+          <input
+            type="search"
+            placeholder="Search inventory"
+            aria-label="Search inventory"
+            data-inventory-search
+          />
+          <p class="inventory-toolbar__hint">Showing five items at a time. Scroll to reveal more results.</p>
+        </div>
+
         <div class="inventory-panels">
           <article class="inventory-panel">
             <header>
               <h3>Furniture</h3>
               <p>Includes all lounge, bedroom and decor listings.</p>
             </header>
-            <div class="inventory-items" data-inventory-list="Furniture">
+            <div class="inventory-items" data-inventory-list="Furniture" tabindex="0">
               <p class="product-empty">Loading furniture catalogue…</p>
             </div>
           </article>
@@ -80,7 +130,7 @@
               <h3>Groceries</h3>
               <p>Shows pantry, produce and wholesale grocery products.</p>
             </header>
-            <div class="inventory-items" data-inventory-list="Groceries">
+            <div class="inventory-items" data-inventory-list="Groceries" tabindex="0">
               <p class="product-empty">Loading grocery catalogue…</p>
             </div>
           </article>
@@ -136,8 +186,8 @@
             </div>
             <button class="btn btn-primary" type="submit">Save draft item</button>
             <p class="form-hint">
-              When editing a published item your changes are stored locally as overrides. Sync them to DynamoDB and update the
-              S3 image paths once you have deployed the accompanying AWS backend.
+              When editing a published item your changes are stored locally as overrides. Uploaded images are stored directly in
+              your configured S3 bucket and the live catalogue is updated when you sync to DynamoDB.
             </p>
             <div class="form-feedback" data-inventory-feedback aria-live="polite"></div>
           </form>
