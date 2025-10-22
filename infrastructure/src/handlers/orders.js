@@ -9,31 +9,16 @@ const ORDER_RECIPIENT = (process.env.ORDER_RECIPIENT || '').trim();
 const ORDER_SENDER = (process.env.ORDER_SENDER || ORDER_RECIPIENT).trim();
 const SEND_CUSTOMER_COPY = (process.env.ORDER_SEND_CUSTOMER_COPY || '').toString().toLowerCase() === 'true';
 
-function normalizeOrigin(value) {
-  if (!value) return '';
-  const trimmed = value.toString().trim();
-  if (!trimmed) return '';
-  try {
-    const url = new URL(trimmed);
-    return `${url.protocol}//${url.host}`;
-  } catch (error) {
-    return trimmed.replace(/\/*$/, '');
-  }
-}
-
 function resolveOrigin(requestOrigin = '') {
   if (!ALLOWED_ORIGINS || ALLOWED_ORIGINS === '*') {
     return '*';
   }
-  const allowed = ALLOWED_ORIGINS.split(',')
-    .map((value) => normalizeOrigin(value))
-    .filter(Boolean);
+  const allowed = ALLOWED_ORIGINS.split(',').map((value) => value.trim()).filter(Boolean);
   if (!allowed.length) {
     return '*';
   }
-  const normalisedRequest = normalizeOrigin(requestOrigin);
-  if (normalisedRequest && allowed.includes(normalisedRequest)) {
-    return normalisedRequest;
+  if (requestOrigin && allowed.includes(requestOrigin)) {
+    return requestOrigin;
   }
   return allowed[0];
 }
