@@ -222,6 +222,14 @@ img {
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
+.btn:disabled,
+.btn[disabled] {
+  opacity: 0.65;
+  cursor: not-allowed;
+  pointer-events: none;
+  box-shadow: none;
+}
+
 .btn-primary {
   background: linear-gradient(135deg, #111111, #1f1f1f);
   color: #fff;
@@ -1027,6 +1035,18 @@ body.has-open-gallery {
   border: 1px solid rgba(212, 175, 55, 0.22);
 }
 
+@media (min-width: 960px) {
+  .order-layout {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .order-card {
+    padding: 1.75rem;
+  }
+}
+
 .order-card h2 {
   margin-top: 0;
   font-size: 1.8rem;
@@ -1116,6 +1136,12 @@ textarea {
   background: rgba(212, 175, 55, 0.18);
   color: var(--brand-primary);
   border: 1px solid rgba(212, 175, 55, 0.35);
+}
+
+.alert.info {
+  background: rgba(44, 120, 201, 0.12);
+  color: rgba(14, 63, 120, 0.95);
+  border: 1px solid rgba(44, 120, 201, 0.3);
 }
 
 .empty-state {

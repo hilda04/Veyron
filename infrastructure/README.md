@@ -4,9 +4,11 @@ This directory contains an AWS Serverless Application Model (SAM) template and r
 infrastructure required by the enhanced Veyron admin portal. The stack deploys:
 
 - **Amazon API Gateway** exposing REST endpoints that the admin UI can call to sync catalogue changes.
-- **AWS Lambda (Node.js 18)** to handle inventory synchronisation, CRUD operations and S3 upload URL generation.
+- **AWS Lambda (Node.js 18)** to handle inventory synchronisation, CRUD operations, S3 upload URL generation and storefront
+  order notifications.
 - **Amazon DynamoDB** for storing the canonical catalogue entries.
 - **Amazon S3** bucket used to store product photography uploaded from the dashboard.
+- **Amazon Simple Email Service (SES)** to forward storefront order submissions to the operations team.
 
 ## Prerequisites
 
@@ -32,6 +34,11 @@ During the guided deploy you will be prompted for:
 - **StageName** – the API Gateway stage (default `prod`).
 - **AllowedOrigins** – comma separated origins allowed to call the API (for local testing you can use `http://localhost:3000`).
 - **SignedUrlExpiry** – validity window in seconds for generated S3 upload URLs (default 900 seconds).
+- **OrderRecipientEmail** – address that receives storefront order alerts (default `hildamachando4@gmail.com`). Ensure this
+  address is verified in SES if your account is still in the sandbox.
+- **OrderSenderEmail** – verified SES identity used as the "From" address for order notifications (default
+  `no-reply@veyron-enterprises.com`).
+- **OrderSendCustomerCopy** – set to `true` if you want customers to receive a CC of the order confirmation email.
 
 Once deployment completes, the command line output will display the `ApiUrl`, `ProductsTableName` and
 `ProductImagesBucketName` outputs. Record the API URL – you will paste it into `public/scripts/config.js`.
@@ -77,5 +84,6 @@ for local use. The file can look like this:
 | `PUT /products/{category}/{id}`        | Creates or updates one product.                          |
 | `DELETE /products/{category}/{id}`     | Removes a product from the table.                        |
 | `POST /products/{category}/{id}/images`| Generates a pre-signed S3 URL for image uploads.         |
+| `POST /orders`                         | Accepts storefront orders and emails them to operations. |
 
 All endpoints return CORS headers so they can be called directly from the browser once `AllowedOrigins` is configured.
