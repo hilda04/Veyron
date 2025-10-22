@@ -21,7 +21,7 @@ Parameters:
     Description: API Gateway deployment stage.
   AllowedOrigins:
     Type: String
-    Default: "https://main.d1orae4bhxx3yj.amplifyapp.com/,https://veyronenterprises.com/"
+    Default: "https://main.d1orae4bhxx3yj.amplifyapp.com/"
     Description: Comma separated list of origins allowed to call the API.
   SignedUrlExpiry:
     Type: Number
