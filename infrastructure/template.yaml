@@ -34,15 +34,9 @@ Resources:
     Properties:
       StageName: !Ref StageName
       Cors:
-        AllowHeaders: "content-type,authorization,x-api-key"
-        AllowMethods: "OPTIONS,GET,POST,PUT,DELETE"
-        AllowOrigin: !Ref AllowedOrigins
-        MaxAge: 3600
-      MethodSettings:
-        - ResourcePath: "/*"
-          HttpMethod: "*"
-          LoggingLevel: INFO
-          MetricsEnabled: true
+        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        AllowHeaders: "'content-type,x-api-key,authorization'"
+        AllowOrigin: !Sub "'${AllowedOrigins}'"
 
   ProductsTable:
     Type: AWS::DynamoDB::Table
