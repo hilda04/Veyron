@@ -1,0 +1,8 @@
+{
+  "name": "veyron-admin-backend",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "aws-sdk": "^2.1538.0"
+  }
+}
