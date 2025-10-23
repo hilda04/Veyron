@@ -87,8 +87,30 @@
   }
 
   function normalizeImageSource(value) {
-    const raw = (value || '').toString().trim();
+    if (!value && value !== 0) return '';
+
+    if (typeof value === 'object') {
+      const isFile = typeof File !== 'undefined' && value instanceof File;
+      const isBlob = typeof Blob !== 'undefined' && value instanceof Blob;
+      if (isFile || isBlob) {
+        return '';
+      }
+      if (typeof value.url !== 'undefined') {
+        return normalizeImageSource(value.url);
+      }
+      if (typeof value.src !== 'undefined') {
+        return normalizeImageSource(value.src);
+      }
+      if (typeof value.path !== 'undefined') {
+        return normalizeImageSource(value.path);
+      }
+      return '';
+    }
+
+    const raw = value.toString().trim();
     if (!raw) return '';
+    if (/^\[object\s/i.test(raw)) return '';
+
     if (raw.startsWith('//')) {
       if (typeof window !== 'undefined' && window.location && window.location.protocol) {
         return `${window.location.protocol}${raw}`;
