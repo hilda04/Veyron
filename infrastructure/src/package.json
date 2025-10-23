@@ -1,8 +1,19 @@
 {
   "name": "veyron-admin-backend",
   "version": "1.0.0",
+  "description": "AWS Lambda backend for the Veyron Admin portal",
+  "main": "handlers/products.js",
   "private": true,
+  "type": "commonjs",
   "dependencies": {
     "aws-sdk": "^2.1538.0"
+  },
+  "scripts": {
+    "build": "echo 'Building Lambda package...'",
+    "test": "echo 'No tests specified'"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
+
