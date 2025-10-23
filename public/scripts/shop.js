@@ -13,6 +13,35 @@
     );
   }
 
+  function normalizeImageSource(value) {
+    if (
+      window.productStore &&
+      typeof window.productStore.normalizeImageSource === 'function'
+    ) {
+      return window.productStore.normalizeImageSource(value);
+    }
+    const raw = (value || '').toString().trim();
+    if (!raw) return '';
+    if (raw.startsWith('//')) {
+      if (typeof window !== 'undefined' && window.location && window.location.protocol) {
+        return `${window.location.protocol}${raw}`;
+      }
+      return `https:${raw}`;
+    }
+    if (/^https?:\/\//i.test(raw)) {
+      if (
+        typeof window !== 'undefined' &&
+        window.location &&
+        window.location.protocol === 'https:' &&
+        /^http:\/\//i.test(raw)
+      ) {
+        return raw.replace(/^http:\/\//i, 'https://');
+      }
+      return raw;
+    }
+    return raw;
+  }
+
   function createQuantitySelect() {
     const select = document.createElement('select');
     select.className = 'quantity-select';
@@ -28,8 +57,7 @@
   function collectImages(item) {
     const sources = [];
     [item.image, ...(Array.isArray(item.images) ? item.images : [])].forEach((src) => {
-      if (!src) return;
-      const value = src.toString();
+      const value = normalizeImageSource(src);
       if (value && !sources.includes(value)) {
         sources.push(value);
       }
@@ -305,7 +333,28 @@
         'custom'
       );
 
-      baseItems = [...mergedRemote, ...draftItems, ...orphanOverrides];
+      const combined = [...mergedRemote, ...draftItems, ...orphanOverrides];
+      const deduped = [];
+      const seen = new Map();
+
+      combined.forEach((item) => {
+        if (!item || typeof item !== 'object') {
+          return;
+        }
+        const id = (item.id || '').toString();
+        if (!id) {
+          deduped.push(item);
+          return;
+        }
+        if (seen.has(id)) {
+          deduped[seen.get(id)] = item;
+        } else {
+          seen.set(id, deduped.length);
+          deduped.push(item);
+        }
+      });
+
+      baseItems = deduped;
       applyFilters({ resetPage });
     }
 

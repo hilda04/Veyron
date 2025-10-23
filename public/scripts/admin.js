@@ -510,8 +510,18 @@
   }
 
   function createImageCarousel(images, title) {
-    const sources = Array.isArray(images) ? images.filter(Boolean) : [];
-    if (!sources.length) return null;
+    const normalise =
+      window.productStore && typeof window.productStore.normalizeImageSource === 'function'
+        ? window.productStore.normalizeImageSource
+        : (value) => (value || '').toString().trim();
+    const uniqueSources = [];
+    (Array.isArray(images) ? images : []).forEach((src) => {
+      const value = normalise(src);
+      if (value && !uniqueSources.includes(value)) {
+        uniqueSources.push(value);
+      }
+    });
+    if (!uniqueSources.length) return null;
     let index = 0;
 
     const container = document.createElement('div');
@@ -524,12 +534,12 @@
       viewport.setAttribute('aria-label', `View images of ${title}`);
     }
     const img = document.createElement('img');
-    img.src = sources[0];
+    img.src = uniqueSources[0];
     img.alt = '';
     viewport.appendChild(img);
     viewport.addEventListener('click', () => {
       if (window.productGallery && typeof window.productGallery.open === 'function') {
-        window.productGallery.open(sources, title || 'Product image');
+        window.productGallery.open(uniqueSources, title || 'Product image');
       }
     });
     container.appendChild(viewport);
@@ -538,10 +548,10 @@
     controls.className = 'image-carousel__controls';
     const counter = document.createElement('span');
     counter.className = 'image-carousel__counter';
-    counter.textContent = `${Math.min(index + 1, sources.length)} / ${sources.length}`;
+    counter.textContent = `${Math.min(index + 1, uniqueSources.length)} / ${uniqueSources.length}`;
     controls.appendChild(counter);
 
-    if (sources.length > 1) {
+    if (uniqueSources.length > 1) {
       const prev = document.createElement('button');
       prev.type = 'button';
       prev.className = 'image-carousel__nav image-carousel__nav--prev';
@@ -555,9 +565,9 @@
       next.textContent = '›';
 
       function update(newIndex) {
-        index = (newIndex + sources.length) % sources.length;
-        img.src = sources[index];
-        counter.textContent = `${index + 1} / ${sources.length}`;
+        index = (newIndex + uniqueSources.length) % uniqueSources.length;
+        img.src = uniqueSources[index];
+        counter.textContent = `${index + 1} / ${uniqueSources.length}`;
       }
 
       prev.addEventListener('click', () => {
