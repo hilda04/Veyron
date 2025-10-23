@@ -83,60 +83,89 @@ function normalizeItem(rawItem, { status }) {
   };
 }
 
-async function batchWriteRequests(requests) {
-  if (!requests.length) return;
-  const chunks = [];
-  for (let i = 0; i < requests.length; i += 25) chunks.push(requests.slice(i, i + 25));
-  for (const chunk of chunks) {
+function keyOf(cat, id) {
+  return `${sanitizeCategory(cat)}#${sanitizeId(id)}`;
+}
+
+/** Batch write helpers that separate PUTs and DELETEs and retry unprocessed items */
+async function batchWritePut(items) {
+  if (!items.length) return;
+  for (let i = 0; i < items.length; i += 25) {
+    const chunk = items.slice(i, i + 25).map((Item) => ({ PutRequest: { Item } }));
     let pending = { RequestItems: { [TABLE_NAME]: chunk } };
     do {
-      const response = await dynamo.batchWrite(pending).promise();
-      const unprocessed = response.UnprocessedItems || {};
-      const nextChunk = unprocessed[TABLE_NAME];
-      pending = nextChunk && nextChunk.length ? { RequestItems: { [TABLE_NAME]: nextChunk } } : null;
+      const res = await dynamo.batchWrite(pending).promise();
+      const un = res.UnprocessedItems?.[TABLE_NAME] || [];
+      pending = un.length ? { RequestItems: { [TABLE_NAME]: un } } : null;
     } while (pending);
   }
 }
 
+async function batchWriteDelete(keys) {
+  if (!keys.length) return;
+  for (let i = 0; i < keys.length; i += 25) {
+    const chunk = keys.slice(i, i + 25).map((Key) => ({ DeleteRequest: { Key } }));
+    let pending = { RequestItems: { [TABLE_NAME]: chunk } };
+    do {
+      const res = await dynamo.batchWrite(pending).promise();
+      const un = res.UnprocessedItems?.[TABLE_NAME] || [];
+      pending = un.length ? { RequestItems: { [TABLE_NAME]: un } } : null;
+    } while (pending);
+  }
+}
+
+/** --- FIXED /sync: dedupe keys, apply priority, delete first, then upsert --- */
 async function handleSync(event, origin) {
   if (!TABLE_NAME) throw new Error('TABLE_NAME environment variable is not configured.');
 
   const payload = parseJsonBody(event);
-  const upsertItems = [];
-  const deleteItems = [];
-
   const published = Array.isArray(payload.published) ? payload.published : [];
   const overrides = Array.isArray(payload.overrides) ? payload.overrides : [];
-  const drafts = Array.isArray(payload.drafts) ? payload.drafts : [];
-  const removed = Array.isArray(payload.removed) ? payload.removed : [];
+  const drafts    = Array.isArray(payload.drafts)    ? payload.drafts    : [];
+  const removed   = Array.isArray(payload.removed)   ? payload.removed   : [];
 
-  published.forEach((item) => {
-    const normalized = normalizeItem(item, { status: 'PUBLISHED' });
-    if (normalized) upsertItems.push({ PutRequest: { Item: normalized } });
-  });
+  // Priority: removed > overrides > published > drafts
+  const upsertMap = new Map();
+  const apply = (arr, status) => {
+    for (const item of arr) {
+      const cat = item?.category; const id = item?.id;
+      if (!cat || !id) continue;
+      const norm = normalizeItem({ ...item, category: cat, id }, { status });
+      if (!norm) continue;
+      upsertMap.set(keyOf(cat, id), norm); // last writer wins within same priority tier
+    }
+  };
 
-  overrides.forEach((item) => {
-    const normalized = normalizeItem(item, { status: 'PUBLISHED_OVERRIDE' });
-    if (normalized) upsertItems.push({ PutRequest: { Item: normalized } });
-  });
+  // Lowest → highest so later ones override earlier
+  apply(drafts, 'DRAFT');
+  apply(published, 'PUBLISHED');
+  apply(overrides, 'PUBLISHED_OVERRIDE');
 
-  drafts.forEach((item) => {
-    const normalized = normalizeItem(item, { status: 'DRAFT' });
-    if (normalized) upsertItems.push({ PutRequest: { Item: normalized } });
-  });
-
-  removed.forEach((item) => {
-    if (!item || !item.category || !item.id) return;
-    deleteItems.push({
-      DeleteRequest: { Key: { Category: sanitizeCategory(item.category), ProductId: sanitizeId(item.id) } },
+  // Any removed key must not be in upserts
+  const deleteKeys = [];
+  for (const item of removed) {
+    if (!item?.category || !item?.id) continue;
+    const k = keyOf(item.category, item.id);
+    upsertMap.delete(k);
+    deleteKeys.push({
+      Category: sanitizeCategory(item.category),
+      ProductId: sanitizeId(item.id),
     });
-  });
+  }
 
-  await batchWriteRequests([...upsertItems, ...deleteItems]);
+  const putItems = Array.from(upsertMap.values());
+
+  // Execute in two phases to avoid duplicate-key-in-batch errors
+  await batchWriteDelete(deleteKeys);
+  await batchWritePut(putItems);
 
   return createResponse(
     200,
-    { message: 'Inventory synchronised successfully.', upserted: upsertItems.length, removed: deleteItems.length },
+    {
+      message: 'Inventory synchronised successfully.',
+      upserted: putItems.length,
+      removed: deleteKeys.length,
+    },
     {},
     origin
   );
@@ -218,7 +247,7 @@ async function handleUploadUrl(event, origin) {
   const contentType = (payload.contentType || 'image/jpeg').toString();
   const key = `catalogue/${category}/${id}/${Date.now()}-${originalName}`;
 
-  // IMPORTANT: no ACL here (bucket has ObjectOwnership=BucketOwnerEnforced)
+  // No ACL here (bucket has ObjectOwnership=BucketOwnerEnforced)
   const uploadUrl = await s3.getSignedUrlPromise('putObject', {
     Bucket: BUCKET_NAME,
     Key: key,
@@ -229,12 +258,7 @@ async function handleUploadUrl(event, origin) {
   const region = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1';
   const publicUrl = `https://${BUCKET_NAME}.s3.${region}.amazonaws.com/${key}`;
 
-  return createResponse(
-    200,
-    { uploadUrl, publicUrl, expiresIn: URL_EXPIRY_SECONDS },
-    {},
-    origin
-  );
+  return createResponse(200, { uploadUrl, publicUrl, expiresIn: URL_EXPIRY_SECONDS }, {}, origin);
 }
 
 exports.handler = async (event) => {
@@ -264,11 +288,6 @@ exports.handler = async (event) => {
     }
   } catch (error) {
     console.error('Admin API error', error);
-    return createResponse(
-      500,
-      { message: 'Internal server error.', detail: error.message },
-      {},
-      event.headers?.origin || event.headers?.Origin || ''
-    );
+    return createResponse(500, { message: 'Internal server error.', detail: error.message }, {}, event.headers?.origin || event.headers?.Origin || '');
   }
 };
