@@ -86,11 +86,33 @@
     return candidate;
   }
 
+  function normalizeImageSource(value) {
+    const raw = (value || '').toString().trim();
+    if (!raw) return '';
+    if (raw.startsWith('//')) {
+      if (typeof window !== 'undefined' && window.location && window.location.protocol) {
+        return `${window.location.protocol}${raw}`;
+      }
+      return `https:${raw}`;
+    }
+    if (/^https?:\/\//i.test(raw)) {
+      if (
+        typeof window !== 'undefined' &&
+        window.location &&
+        window.location.protocol === 'https:' &&
+        /^http:\/\//i.test(raw)
+      ) {
+        return raw.replace(/^http:\/\//i, 'https://');
+      }
+      return raw;
+    }
+    return raw;
+  }
+
   function sanitizeImages(rawImages) {
     const unique = [];
     (Array.isArray(rawImages) ? rawImages : [rawImages]).forEach((image) => {
-      if (!image) return;
-      const source = image.toString();
+      const source = normalizeImageSource(image);
       if (source && !unique.includes(source)) {
         unique.push(source);
       }
@@ -505,6 +527,7 @@
     getInventoryState,
     subscribe,
     generateProductId,
+    normalizeImageSource,
     toJSON: () => getCustomProducts(true),
   };
 
