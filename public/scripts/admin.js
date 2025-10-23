@@ -1420,18 +1420,60 @@
       headers,
       body: JSON.stringify(payload),
     })
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error(`Sync failed with status ${response.status}`);
+      .then(async (response) => {
+        let text = '';
+        try {
+          text = await response.text();
+        } catch (readError) {
+          console.warn('Unable to read sync response body', readError);
         }
-        return response.json().catch(() => ({}));
+
+        let data = {};
+        if (text) {
+          try {
+            data = JSON.parse(text);
+          } catch (parseError) {
+            data = text;
+          }
+        }
+
+        if (!response.ok) {
+          const detail =
+            data && typeof data === 'object' ? data.detail || data.message || '' : typeof data === 'string' ? data : '';
+          const error = new Error(
+            detail
+              ? `Sync failed with status ${response.status}: ${detail}`
+              : `Sync failed with status ${response.status}`
+          );
+          error.status = response.status;
+          error.responseBody = data;
+          throw error;
+        }
+
+        return data && typeof data === 'object' ? data : {};
       })
-      .then(() => {
-        setSyncFeedback('Sync complete! DynamoDB now mirrors your dashboard changes.', 'success');
+      .then((result) => {
+        const upserted = typeof result.upserted === 'number' ? result.upserted : 0;
+        const removed = typeof result.removed === 'number' ? result.removed : 0;
+        const summaryParts = [];
+        if (upserted) summaryParts.push(`${upserted} item${upserted === 1 ? '' : 's'} updated`);
+        if (removed) summaryParts.push(`${removed} item${removed === 1 ? '' : 's'} removed`);
+        const summary = summaryParts.length ? ` (${summaryParts.join(', ')})` : '';
+        setSyncFeedback(`Sync complete! DynamoDB now mirrors your dashboard changes${summary}.`, 'success');
       })
       .catch((error) => {
         console.error('Inventory sync failed', error);
-        setSyncFeedback('Sync failed. Check your API configuration and AWS logs.', 'error');
+        const detail =
+          error && typeof error === 'object'
+            ? error.responseBody && typeof error.responseBody === 'object'
+              ? error.responseBody.detail || error.responseBody.message || ''
+              : ''
+            : '';
+        const message = detail || (typeof error.message === 'string' ? error.message : '');
+        const feedback = message
+          ? `Sync failed. ${message}`
+          : 'Sync failed. Check your API configuration and AWS logs.';
+        setSyncFeedback(feedback, 'error');
       })
       .finally(() => {
         if (button) {
