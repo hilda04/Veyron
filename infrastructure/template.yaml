@@ -79,7 +79,7 @@ Resources:
       BucketName: !Sub "${AWS::StackName}-product-images-${AWS::Region}-${AWS::AccountId}"
       CorsConfiguration:
         CorsRules:
-          - AllowedOrigins: !Split [ ",", !Ref AllowedOriginsList ]
+          - AllowedOrigins: !Ref AllowedOriginsList
             AllowedMethods:
               - GET
               - PUT
