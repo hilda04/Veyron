@@ -12,7 +12,7 @@ Globals:
         TABLE_NAME: !Ref ProductsTable
         BUCKET_NAME: !Ref ProductImagesBucket
         URL_EXPIRY_SECONDS: !Ref SignedUrlExpiry
-        ALLOWED_ORIGINS: !Ref AllowedOriginsList
+        ALLOWED_ORIGINS: !Ref AllowedOriginSingle
 
 Parameters:
   StageName:
@@ -22,7 +22,7 @@ Parameters:
   AllowedOriginSingle:
     Type: String
     Default: "https://main.d1orae4bhxx3yj.amplifyapp.com"
-    Description: Comma separated list of origins allowed to call the API.
+    Description: Single origin for API.
   AllowedOriginsList:
     Type: CommaDelimitedList
     Default: "https://main.d1orae4bhxx3yj.amplifyapp.com"
@@ -80,15 +80,9 @@ Resources:
       CorsConfiguration:
         CorsRules:
           - AllowedOrigins: !Ref AllowedOriginsList
-            AllowedMethods:
-              - GET
-              - PUT
-              - POST
-              - HEAD
-            AllowedHeaders:
-              - "*"
-            ExposedHeaders:
-              - ETag
+            AllowedMethods: [ GET, PUT, POST, HEAD ]
+            AllowedHeaders: [ "*" ]
+            ExposedHeaders: [ ETag ]
             MaxAge: 3600
 
   ProductsFunction:
@@ -152,7 +146,7 @@ Resources:
           ORDER_RECIPIENT: !Ref OrderRecipientEmail
           ORDER_SENDER: !Ref OrderSenderEmail
           ORDER_SEND_CUSTOMER_COPY: !Ref OrderSendCustomerCopy
-          ALLOWED_ORIGINS: !Ref AllowedOriginsList
+          ALLOWED_ORIGINS: !Ref AllowedOriginSingle
           SES_REGION: !Ref AWS::Region
       Events:
         SubmitOrder:
