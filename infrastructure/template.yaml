@@ -85,6 +85,19 @@ Resources:
             ExposedHeaders: [ ETag ]
             MaxAge: 3600
 
+  ProductImagesBucketPolicy:
+  Type: AWS::S3::BucketPolicy
+  Properties:
+    Bucket: !Ref ProductImagesBucket
+    PolicyDocument:
+      Version: "2012-10-17"
+      Statement:
+        - Sid: PublicReadCatalogue
+          Effect: Allow
+          Principal: "*"
+          Action: s3:GetObject
+          Resource: !Sub "arn:aws:s3:::${ProductImagesBucket}/catalogue/*"
+
   ProductsFunction:
     Type: AWS::Serverless::Function
     Properties:
