@@ -17,25 +17,17 @@ function normalizeOrigin(value) {
   try {
     const url = new URL(trimmed);
     return `${url.protocol}//${url.host}`;
-  } catch (error) {
+  } catch (_) {
     return trimmed.replace(/\/*$/, '');
   }
 }
 
 function resolveOrigin(requestOrigin = '') {
-  if (!ALLOWED_ORIGINS || ALLOWED_ORIGINS === '*') {
-    return '*';
-  }
-  const allowed = ALLOWED_ORIGINS.split(',')
-    .map((value) => normalizeOrigin(value))
-    .filter(Boolean);
-  if (!allowed.length) {
-    return '*';
-  }
+  if (!ALLOWED_ORIGINS || ALLOWED_ORIGINS === '*') return '*';
+  const allowed = ALLOWED_ORIGINS.split(',').map(normalizeOrigin).filter(Boolean);
+  if (!allowed.length) return '*';
   const normalisedRequest = normalizeOrigin(requestOrigin);
-  if (normalisedRequest && allowed.includes(normalisedRequest)) {
-    return normalisedRequest;
-  }
+  if (normalisedRequest && allowed.includes(normalisedRequest)) return normalisedRequest;
   return allowed[0];
 }
 
@@ -57,7 +49,7 @@ function parseJsonBody(event) {
   if (!event.body) return {};
   try {
     return JSON.parse(event.body);
-  } catch (error) {
+  } catch {
     throw new Error('Invalid JSON payload supplied.');
   }
 }
@@ -65,15 +57,15 @@ function parseJsonBody(event) {
 function sanitizeCategory(value) {
   return (value || '').toString().trim();
 }
-
 function sanitizeId(value) {
   return (value || '').toString().trim();
 }
+function sanitizeFilename(filename) {
+  return (filename || '').toString().replace(/[^a-zA-Z0-9._-]+/g, '-');
+}
 
 function normalizeItem(rawItem, { status }) {
-  if (!rawItem || !rawItem.id || !rawItem.category) {
-    return null;
-  }
+  if (!rawItem || !rawItem.id || !rawItem.category) return null;
   const now = new Date().toISOString();
   const images = Array.isArray(rawItem.images)
     ? rawItem.images.filter(Boolean).map((src) => src.toString())
@@ -94,34 +86,21 @@ function normalizeItem(rawItem, { status }) {
 async function batchWriteRequests(requests) {
   if (!requests.length) return;
   const chunks = [];
-  for (let i = 0; i < requests.length; i += 25) {
-    chunks.push(requests.slice(i, i + 25));
-  }
+  for (let i = 0; i < requests.length; i += 25) chunks.push(requests.slice(i, i + 25));
   for (const chunk of chunks) {
-    const params = {
-      RequestItems: {
-        [TABLE_NAME]: chunk,
-      },
-    };
-    // Retry on unprocessed items
-    let pending = params;
+    let pending = { RequestItems: { [TABLE_NAME]: chunk } };
     do {
       const response = await dynamo.batchWrite(pending).promise();
       const unprocessed = response.UnprocessedItems || {};
       const nextChunk = unprocessed[TABLE_NAME];
-      if (nextChunk && nextChunk.length) {
-        pending = { RequestItems: { [TABLE_NAME]: nextChunk } };
-      } else {
-        pending = null;
-      }
+      pending = nextChunk && nextChunk.length ? { RequestItems: { [TABLE_NAME]: nextChunk } } : null;
     } while (pending);
   }
 }
 
 async function handleSync(event, origin) {
-  if (!TABLE_NAME) {
-    throw new Error('TABLE_NAME environment variable is not configured.');
-  }
+  if (!TABLE_NAME) throw new Error('TABLE_NAME environment variable is not configured.');
+
   const payload = parseJsonBody(event);
   const upsertItems = [];
   const deleteItems = [];
@@ -133,50 +112,38 @@ async function handleSync(event, origin) {
 
   published.forEach((item) => {
     const normalized = normalizeItem(item, { status: 'PUBLISHED' });
-    if (normalized) {
-      upsertItems.push({ PutRequest: { Item: normalized } });
-    }
+    if (normalized) upsertItems.push({ PutRequest: { Item: normalized } });
   });
 
   overrides.forEach((item) => {
     const normalized = normalizeItem(item, { status: 'PUBLISHED_OVERRIDE' });
-    if (normalized) {
-      upsertItems.push({ PutRequest: { Item: normalized } });
-    }
+    if (normalized) upsertItems.push({ PutRequest: { Item: normalized } });
   });
 
   drafts.forEach((item) => {
     const normalized = normalizeItem(item, { status: 'DRAFT' });
-    if (normalized) {
-      upsertItems.push({ PutRequest: { Item: normalized } });
-    }
+    if (normalized) upsertItems.push({ PutRequest: { Item: normalized } });
   });
 
   removed.forEach((item) => {
     if (!item || !item.category || !item.id) return;
     deleteItems.push({
-      DeleteRequest: {
-        Key: {
-          Category: sanitizeCategory(item.category),
-          ProductId: sanitizeId(item.id),
-        },
-      },
+      DeleteRequest: { Key: { Category: sanitizeCategory(item.category), ProductId: sanitizeId(item.id) } },
     });
   });
 
   await batchWriteRequests([...upsertItems, ...deleteItems]);
 
-  return createResponse(200, {
-    message: 'Inventory synchronised successfully.',
-    upserted: upsertItems.length,
-    removed: deleteItems.length,
-  }, {}, origin);
+  return createResponse(
+    200,
+    { message: 'Inventory synchronised successfully.', upserted: upsertItems.length, removed: deleteItems.length },
+    {},
+    origin
+  );
 }
 
 async function handleList(event, origin) {
-  if (!TABLE_NAME) {
-    throw new Error('TABLE_NAME environment variable is not configured.');
-  }
+  if (!TABLE_NAME) throw new Error('TABLE_NAME environment variable is not configured.');
   const params = event.queryStringParameters || {};
   const category = sanitizeCategory(params.category);
 
@@ -185,12 +152,8 @@ async function handleList(event, origin) {
       .query({
         TableName: TABLE_NAME,
         KeyConditionExpression: '#c = :category',
-        ExpressionAttributeNames: {
-          '#c': 'Category',
-        },
-        ExpressionAttributeValues: {
-          ':category': category,
-        },
+        ExpressionAttributeNames: { '#c': 'Category' },
+        ExpressionAttributeValues: { ':category': category },
       })
       .promise();
     return createResponse(200, { items: result.Items || [] }, {}, origin);
@@ -199,12 +162,7 @@ async function handleList(event, origin) {
   const items = [];
   let ExclusiveStartKey;
   do {
-    const result = await dynamo
-      .scan({
-        TableName: TABLE_NAME,
-        ExclusiveStartKey,
-      })
-      .promise();
+    const result = await dynamo.scan({ TableName: TABLE_NAME, ExclusiveStartKey }).promise();
     (result.Items || []).forEach((item) => items.push(item));
     ExclusiveStartKey = result.LastEvaluatedKey;
   } while (ExclusiveStartKey);
@@ -213,116 +171,70 @@ async function handleList(event, origin) {
 }
 
 async function handleGet(event, origin) {
+  if (!TABLE_NAME) throw new Error('TABLE_NAME environment variable is not configured.');
   const category = sanitizeCategory(event.pathParameters?.category);
   const id = sanitizeId(event.pathParameters?.id);
-  if (!TABLE_NAME) {
-    throw new Error('TABLE_NAME environment variable is not configured.');
-  }
-  if (!category || !id) {
-    return createResponse(400, { message: 'Both category and id are required.' }, {}, origin);
-  }
+  if (!category || !id) return createResponse(400, { message: 'Both category and id are required.' }, {}, origin);
+
   const result = await dynamo
-    .get({
-      TableName: TABLE_NAME,
-      Key: {
-        Category: category,
-        ProductId: id,
-      },
-    })
+    .get({ TableName: TABLE_NAME, Key: { Category: category, ProductId: id } })
     .promise();
-  if (!result.Item) {
-    return createResponse(404, { message: 'Product not found.' }, {}, origin);
-  }
+  if (!result.Item) return createResponse(404, { message: 'Product not found.' }, {}, origin);
   return createResponse(200, result.Item, {}, origin);
 }
 
 async function handlePut(event, origin) {
+  if (!TABLE_NAME) throw new Error('TABLE_NAME environment variable is not configured.');
   const category = sanitizeCategory(event.pathParameters?.category);
   const id = sanitizeId(event.pathParameters?.id);
-  if (!TABLE_NAME) {
-    throw new Error('TABLE_NAME environment variable is not configured.');
-  }
-  if (!category || !id) {
-    return createResponse(400, { message: 'Both category and id are required.' }, {}, origin);
-  }
+  if (!category || !id) return createResponse(400, { message: 'Both category and id are required.' }, {}, origin);
+
   const payload = parseJsonBody(event);
-  const normalized = normalizeItem(
-    {
-      ...payload,
-      id,
-      category,
-    },
-    { status: payload.status || 'PUBLISHED' }
-  );
-  if (!normalized) {
-    return createResponse(400, { message: 'Invalid product payload.' }, {}, origin);
-  }
-  await dynamo
-    .put({
-      TableName: TABLE_NAME,
-      Item: normalized,
-    })
-    .promise();
+  const normalized = normalizeItem({ ...payload, id, category }, { status: payload.status || 'PUBLISHED' });
+  if (!normalized) return createResponse(400, { message: 'Invalid product payload.' }, {}, origin);
+
+  await dynamo.put({ TableName: TABLE_NAME, Item: normalized }).promise();
   return createResponse(200, { message: 'Product saved.', item: normalized }, {}, origin);
 }
 
 async function handleDelete(event, origin) {
+  if (!TABLE_NAME) throw new Error('TABLE_NAME environment variable is not configured.');
   const category = sanitizeCategory(event.pathParameters?.category);
   const id = sanitizeId(event.pathParameters?.id);
-  if (!TABLE_NAME) {
-    throw new Error('TABLE_NAME environment variable is not configured.');
-  }
-  if (!category || !id) {
-    return createResponse(400, { message: 'Both category and id are required.' }, {}, origin);
-  }
-  await dynamo
-    .delete({
-      TableName: TABLE_NAME,
-      Key: {
-        Category: category,
-        ProductId: id,
-      },
-    })
-    .promise();
+  if (!category || !id) return createResponse(400, { message: 'Both category and id are required.' }, {}, origin);
+
+  await dynamo.delete({ TableName: TABLE_NAME, Key: { Category: category, ProductId: id } }).promise();
   return createResponse(200, { message: 'Product deleted.' }, {}, origin);
 }
 
-function sanitizeFilename(filename) {
-  return filename.replace(/[^a-zA-Z0-9._-]+/g, '-');
-}
-
 async function handleUploadUrl(event, origin) {
-  if (!BUCKET_NAME) {
-    throw new Error('BUCKET_NAME environment variable is not configured.');
-  }
+  if (!BUCKET_NAME) throw new Error('BUCKET_NAME environment variable is not configured.');
   const category = sanitizeCategory(event.pathParameters?.category);
   const id = sanitizeId(event.pathParameters?.id);
-  if (!category || !id) {
-    return createResponse(400, { message: 'Both category and id are required.' }, {}, origin);
-  }
+  if (!category || !id) return createResponse(400, { message: 'Both category and id are required.' }, {}, origin);
+
   const payload = parseJsonBody(event);
-  const originalName = sanitizeFilename((payload.fileName || `${Date.now()}.jpg`).toString());
+  const originalName = sanitizeFilename((payload.filename || payload.fileName || `${Date.now()}.jpg`).toString());
   const contentType = (payload.contentType || 'image/jpeg').toString();
   const key = `catalogue/${category}/${id}/${Date.now()}-${originalName}`;
 
+  // IMPORTANT: no ACL here (bucket has ObjectOwnership=BucketOwnerEnforced)
   const uploadUrl = await s3.getSignedUrlPromise('putObject', {
     Bucket: BUCKET_NAME,
     Key: key,
     ContentType: contentType,
     Expires: URL_EXPIRY_SECONDS,
-    ACL: 'public-read',
   });
 
-  const region = process.env.AWS_REGION;
-  const publicUrl = region
-    ? `https://${BUCKET_NAME}.s3.${region}.amazonaws.com/${key}`
-    : `https://${BUCKET_NAME}.s3.amazonaws.com/${key}`;
+  const region = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1';
+  const publicUrl = `https://${BUCKET_NAME}.s3.${region}.amazonaws.com/${key}`;
 
-  return createResponse(200, {
-    uploadUrl,
-    publicUrl,
-    expiresIn: URL_EXPIRY_SECONDS,
-  }, {}, origin);
+  return createResponse(
+    200,
+    { uploadUrl, publicUrl, expiresIn: URL_EXPIRY_SECONDS },
+    {},
+    origin
+  );
 }
 
 exports.handler = async (event) => {
@@ -352,9 +264,11 @@ exports.handler = async (event) => {
     }
   } catch (error) {
     console.error('Admin API error', error);
-    return createResponse(500, {
-      message: 'Internal server error.',
-      detail: error.message,
-    }, {}, event.headers?.origin || event.headers?.Origin || '');
+    return createResponse(
+      500,
+      { message: 'Internal server error.', detail: error.message },
+      {},
+      event.headers?.origin || event.headers?.Origin || ''
+    );
   }
 };
