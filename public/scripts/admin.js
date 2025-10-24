@@ -44,6 +44,9 @@
   function buildOrderDocument(order) {
     const lines = [];
     lines.push(`Order ID: ${order.id}`);
+    if (order.trackingNumber) {
+      lines.push(`Tracking Number: ${order.trackingNumber}`);
+    }
     lines.push(`Status: ${order.status || 'Open'}`);
     lines.push(`Received: ${formatDate(order.createdAt)}`);
     lines.push('');
@@ -51,12 +54,16 @@
     lines.push(`  Name: ${order.customer?.name || '—'}`);
     lines.push(`  Phone: ${order.customer?.phone || '—'}`);
     lines.push(`  Email: ${order.customer?.email || '—'}`);
+    lines.push(`  City: ${order.customer?.city || order.delivery?.city || '—'}`);
     lines.push('');
     lines.push('Delivery');
     lines.push(`  Address: ${order.delivery?.address || '—'}`);
+    lines.push(`  City: ${order.delivery?.city || order.customer?.city || '—'}`);
     lines.push(`  Date: ${order.delivery?.date || '—'}`);
     lines.push(`  Time: ${order.delivery?.time || '—'}`);
     lines.push(`  Payment: ${order.payment || '—'}`);
+    const deliveryFee = order.totals?.deliveryFee ?? order.delivery?.fee ?? 0;
+    lines.push(`  Delivery Fee: ${formatCurrency(deliveryFee)}`);
 
     if (order.notes) {
       lines.push('');
@@ -79,7 +86,15 @@
     }
 
     lines.push('');
-    lines.push(`Order Total: ${formatCurrency(order.total)}`);
+    const itemsTotal = order.totals?.items ?? order.itemsTotal ?? order.total ?? 0;
+    const grandTotal = order.totals?.grandTotal ?? order.total ?? itemsTotal + deliveryFee;
+    lines.push(`Items Subtotal: ${formatCurrency(itemsTotal)}`);
+    lines.push(`Delivery Fee: ${formatCurrency(deliveryFee)}`);
+    lines.push(`Amount Due: ${formatCurrency(grandTotal)}`);
+    if (order.paymentProof?.name) {
+      const sizeKb = Math.round((Number(order.paymentProof.size) || 0) / 1024);
+      lines.push(`Proof of Payment: ${order.paymentProof.name} (${sizeKb || 0} KB)`);
+    }
 
     return lines.join('\n');
   }
@@ -91,13 +106,29 @@
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
-      anchor.download = `${order.id || 'order'}-details.txt`;
+      const filename = `${order.trackingNumber || order.id || 'order'}-details.txt`;
+      anchor.download = filename;
       document.body.appendChild(anchor);
       anchor.click();
       document.body.removeChild(anchor);
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Failed to download order', error);
+    }
+  }
+
+  function downloadPaymentProof(order) {
+    if (!order?.paymentProof?.dataUrl) return;
+    try {
+      const anchor = document.createElement('a');
+      anchor.href = order.paymentProof.dataUrl;
+      anchor.download =
+        order.paymentProof.name || `${order.trackingNumber || order.id || 'order'}-payment-proof`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+    } catch (error) {
+      console.error('Failed to download payment proof', error);
     }
   }
 
@@ -198,12 +229,19 @@
       card.dataset.status = order.status || 'Open';
       card.dataset.orderId = order.id;
 
+      const totals = order.totals || {};
+      const itemsTotal = totals.items ?? order.itemsTotal ?? order.total ?? 0;
+      const deliveryFee = totals.deliveryFee ?? order.delivery?.fee ?? 0;
+      const grandTotal = totals.grandTotal ?? order.total ?? itemsTotal + deliveryFee;
+      const displayId = order.trackingNumber || order.id;
+
       const header = document.createElement('div');
       header.className = 'admin-card__header';
       header.innerHTML = `
         <div>
-          <h3>Order <span class="order-id">${order.id}</span></h3>
+          <h3>Order <span class="order-id">${displayId}</span></h3>
           <p class="order-meta">Received ${formatDate(order.createdAt)}</p>
+          <p class="order-meta order-meta--total">Amount due ${formatCurrency(grandTotal)}</p>
         </div>
       `;
 
@@ -239,6 +277,7 @@
         <p><strong>${order.customer?.name || 'Unknown'}</strong></p>
         <p>Phone: ${order.customer?.phone || '—'}</p>
         <p>Email: ${order.customer?.email || '—'}</p>
+        <p>City: ${order.customer?.city || order.delivery?.city || '—'}</p>
       `;
       card.appendChild(customerBlock);
 
@@ -247,9 +286,11 @@
       deliveryBlock.innerHTML = `
         <h4>Delivery</h4>
         <p>${order.delivery?.address || '—'}</p>
+        <p>City: ${order.delivery?.city || order.customer?.city || '—'}</p>
         <p>Date: ${order.delivery?.date || '—'}</p>
         <p>Time: ${order.delivery?.time || '—'}</p>
         <p>Payment: ${order.payment || '—'}</p>
+        <p>Delivery fee: ${formatCurrency(deliveryFee)}</p>
       `;
       card.appendChild(deliveryBlock);
 
@@ -277,21 +318,33 @@
       itemsBlock.appendChild(list);
       const total = document.createElement('p');
       total.className = 'order-total';
-      total.innerHTML = `Total: <strong>${formatCurrency(order.total)}</strong>`;
+      total.innerHTML = `Amount due: <strong>${formatCurrency(grandTotal)}</strong> <span class="order-total__breakdown">(${formatCurrency(itemsTotal)} + ${formatCurrency(deliveryFee)} delivery)</span>`;
       itemsBlock.appendChild(total);
       card.appendChild(itemsBlock);
 
-      if ((order.status || 'Open') === 'Open') {
-        const actions = document.createElement('div');
-        actions.className = 'admin-card__actions';
-        const downloadBtn = document.createElement('button');
-        downloadBtn.type = 'button';
-        downloadBtn.className = 'download-order-btn';
-        downloadBtn.textContent = 'Download order details';
-        downloadBtn.addEventListener('click', () => {
-          downloadOrderDetails(order);
+      const actions = document.createElement('div');
+      actions.className = 'admin-card__actions';
+      const downloadBtn = document.createElement('button');
+      downloadBtn.type = 'button';
+      downloadBtn.className = 'download-order-btn';
+      downloadBtn.textContent = 'Download order details';
+      downloadBtn.addEventListener('click', () => {
+        downloadOrderDetails(order);
+      });
+      actions.appendChild(downloadBtn);
+
+      if (order.paymentProof?.dataUrl) {
+        const proofBtn = document.createElement('button');
+        proofBtn.type = 'button';
+        proofBtn.className = 'download-order-btn';
+        proofBtn.textContent = 'Download proof of payment';
+        proofBtn.addEventListener('click', () => {
+          downloadPaymentProof(order);
         });
-        actions.appendChild(downloadBtn);
+        actions.appendChild(proofBtn);
+      }
+
+      if (actions.children.length) {
         card.appendChild(actions);
       }
 

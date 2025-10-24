@@ -47,6 +47,8 @@
         <div class="order-card" data-order-summary>
           <h2>Order Summary</h2>
           <p>Your selected items are listed below. Adjust quantities from the cart if you need to make changes.</p>
+          <div class="order-notice" data-order-notice hidden></div>
+
           <table class="summary-table">
             <thead>
               <tr>
@@ -58,7 +60,15 @@
             <tbody data-summary-rows></tbody>
             <tfoot>
               <tr>
-                <td colspan="2">Estimated Total</td>
+                <td colspan="2">Items Subtotal</td>
+                <td data-summary-items>$0.00</td>
+              </tr>
+              <tr>
+                <td colspan="2">Delivery Fee</td>
+                <td data-summary-delivery>$0.00</td>
+              </tr>
+              <tr>
+                <td colspan="2">Amount Due</td>
                 <td data-summary-total>$0.00</td>
               </tr>
             </tfoot>
@@ -88,6 +98,18 @@
                 <textarea id="deliveryAddress" name="deliveryAddress" placeholder="Street, suburb, city" required></textarea>
               </div>
               <div class="form-group">
+                <label for="deliveryCity">Delivery City *</label>
+                <select id="deliveryCity" name="deliveryCity" required>
+                  <option value="">Select your city</option>
+                  <option value="Harare">Harare</option>
+                  <option value="Chitungwiza">Chitungwiza</option>
+                  <option value="Norton">Norton</option>
+                  <option value="Ruwa">Ruwa</option>
+                  <option value="Marondera">Marondera</option>
+                  <option value="Mazowe">Mazowe</option>
+                </select>
+              </div>
+              <div class="form-group">
                 <label for="deliveryDate">Preferred Delivery Date *</label>
                 <input type="date" id="deliveryDate" name="deliveryDate" required />
               </div>
@@ -104,6 +126,14 @@
                   <option value="World Remit">World Remit</option>
                   <option value="EcoCash">EcoCash</option>
                 </select>
+              </div>
+              <div class="form-group payment-guidance" data-payment-guidance hidden>
+                <label for="paymentProof">Upload Proof of Payment *</label>
+                <input type="file" id="paymentProof" name="paymentProof" accept="image/*,.pdf" />
+                <p class="form-hint">
+                  Please make your payment via the selected method, attach your proof of payment and we will forward it to
+                  <a href="mailto:no-reply@veyronenterprises.com">no-reply@veyronenterprises.com</a> with your order details.
+                </p>
               </div>
               <div class="form-group">
                 <label for="deliveryNotes">Delivery Notes</label>
@@ -126,6 +156,19 @@
           <a class="btn btn-outline" href="groceries.html">Browse Groceries</a>
         </div>
       </div>
+
+      <section class="order-confirmation" data-confirmation-panel hidden>
+        <div class="order-card">
+          <h2>Order Confirmation</h2>
+          <p class="confirmation-message" data-confirmation-message></p>
+          <div class="confirmation-summary" data-confirmation-summary></div>
+          <div class="confirmation-actions">
+            <button class="btn btn-secondary" type="button" data-download-summary>Download order summary</button>
+            <a class="btn btn-outline" href="index.html">Return to homepage</a>
+            <button class="btn btn-primary" type="button" data-new-order>Start a new order</button>
+          </div>
+        </div>
+      </section>
     </main>
 
     <div class="cart-drawer" data-cart-drawer aria-hidden="true">
