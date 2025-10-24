@@ -24,7 +24,11 @@
           <img src="assets/logo.jpg" alt="Veyron Enterprises logo placeholder" />
           <span>Veyron Enterprises</span>
         </a>
-        <nav class="nav-links">
+        <button class="nav-toggle" type="button" aria-expanded="true" aria-controls="primary-navigation">
+          <span class="nav-toggle__icon" aria-hidden="true"></span>
+          <span class="nav-toggle__label">Hide menu</span>
+        </button>
+        <nav id="primary-navigation" class="nav-links" data-visible="true">
           <a href="index.html">Home</a>
           <a href="equipment.html">Equipment Hire</a>
           <a href="furniture.html">Furniture</a>
