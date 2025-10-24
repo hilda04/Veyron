@@ -2,7 +2,7 @@
   const ORDER_STORE_KEY = 'veyron-admin-orders-v1';
   const ORDER_ENDPOINT = '/orders';
   const REQUEST_TIMEOUT_MS = 20000;
-  const PAYMENT_EMAIL = 'no-reply@veyronenterprises.com';
+  const PAYMENT_EMAIL = 'support@veyronenterprises.com';
   const MAX_PROOF_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
 
   const fallbackCurrencyFormatter = new Intl.NumberFormat('en-ZW', {
@@ -12,6 +12,111 @@
   });
 
   let lastConfirmedOrder = null;
+  const challengeState = {
+    siteKey: '',
+    widgetId: null,
+    token: '',
+  };
+
+  function getTurnstileSiteKey() {
+    if (challengeState.siteKey) {
+      return challengeState.siteKey;
+    }
+    const configKey = (window.siteConfig && window.siteConfig.turnstileSiteKey) || '';
+    if (configKey) {
+      challengeState.siteKey = configKey.toString().trim();
+      return challengeState.siteKey;
+    }
+    const meta = document.querySelector('meta[name="turnstile-site-key"]');
+    if (meta) {
+      const content = (meta.getAttribute('content') || '').toString().trim();
+      if (content) {
+        challengeState.siteKey = content;
+        return challengeState.siteKey;
+      }
+      if (meta.dataset) {
+        const dataSiteKey = (meta.dataset.siteKey || meta.dataset.key || '').toString().trim();
+        if (dataSiteKey) {
+          challengeState.siteKey = dataSiteKey;
+          return challengeState.siteKey;
+        }
+      }
+    }
+    return challengeState.siteKey;
+  }
+
+  function updateSecurityCheckVisibility() {
+    const block = document.querySelector('[data-turnstile-block]');
+    if (!block) return;
+    const hasKey = Boolean(getTurnstileSiteKey());
+    block.hidden = !hasKey;
+  }
+
+  function resetSecurityCheck() {
+    challengeState.token = '';
+    if (challengeState.widgetId && window.turnstile && typeof window.turnstile.reset === 'function') {
+      try {
+        window.turnstile.reset(challengeState.widgetId);
+      } catch (error) {
+        console.warn('Unable to reset Turnstile widget', error);
+      }
+    }
+  }
+
+  function renderTurnstileWidget() {
+    const siteKey = getTurnstileSiteKey();
+    updateSecurityCheckVisibility();
+    if (!siteKey) {
+      return;
+    }
+    const container = document.querySelector('[data-turnstile]');
+    if (!container) {
+      return;
+    }
+
+    const render = () => {
+      if (!window.turnstile || typeof window.turnstile.render !== 'function') {
+        return;
+      }
+      if (container.dataset.turnstileRendered === 'true') {
+        return;
+      }
+      container.dataset.turnstileRendered = 'true';
+      try {
+        challengeState.widgetId = window.turnstile.render(container, {
+          sitekey: siteKey,
+          callback(token) {
+            challengeState.token = token;
+          },
+          'expired-callback': () => {
+            challengeState.token = '';
+          },
+          'error-callback': () => {
+            challengeState.token = '';
+          },
+        });
+      } catch (error) {
+        console.error('Failed to render Turnstile widget', error);
+      }
+      updateSecurityCheckVisibility();
+    };
+
+    if (window.turnstile && typeof window.turnstile.render === 'function') {
+      render();
+    } else {
+      const previous = window.onloadTurnstileCallback;
+      window.onloadTurnstileCallback = () => {
+        if (typeof previous === 'function') {
+          try {
+            previous();
+          } catch (error) {
+            console.error('Existing Turnstile onload callback failed', error);
+          }
+        }
+        render();
+      };
+    }
+  }
 
   function loadExistingOrders() {
     try {
@@ -35,8 +140,12 @@
   }
 
   function saveOrder(order) {
+    const sanitized = { ...order };
+    if (Object.prototype.hasOwnProperty.call(sanitized, 'paymentProof')) {
+      delete sanitized.paymentProof;
+    }
     const orders = loadExistingOrders();
-    orders.unshift(order);
+    orders.unshift(sanitized);
     persistOrders(orders);
   }
 
@@ -251,7 +360,7 @@
       lines.push('Notes');
       lines.push(`  ${order.notes}`);
     }
-    if (order.payment !== 'Cash') {
+    if (order.hasPaymentProof) {
       lines.push('');
       lines.push('Proof of payment attached for internal review.');
     }
@@ -354,7 +463,7 @@
       summary.appendChild(notes);
     }
 
-    if (order.payment && order.payment !== 'Cash') {
+    if (order.hasPaymentProof) {
       const reminder = document.createElement('p');
       reminder.textContent = `Your proof of payment has been forwarded to ${PAYMENT_EMAIL}. Our team will verify and reach out if anything else is required.`;
       summary.appendChild(reminder);
@@ -384,6 +493,8 @@
       form.reset();
       updatePaymentGuidance();
     }
+    resetSecurityCheck();
+    updateSecurityCheckVisibility();
     lastConfirmedOrder = null;
     renderSummary();
   }
@@ -452,7 +563,11 @@
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: buildApiHeaders(),
-        body: JSON.stringify({ order }),
+        body: JSON.stringify({
+          order,
+          challengeToken: challengeState.token || null,
+          challengeType: getTurnstileSiteKey() ? 'turnstile' : 'none',
+        }),
         signal: controller ? controller.signal : undefined,
       });
 
@@ -598,6 +713,12 @@
     const proofFile = formData.get('paymentProof');
     let paymentProof = null;
 
+    updateSecurityCheckVisibility();
+    if (getTurnstileSiteKey() && !challengeState.token) {
+      showOrderAlert('Complete the security check before submitting your order.', 'error');
+      return;
+    }
+
     if (requiresProof) {
       const proofIsFile = proofFile instanceof File && proofFile.name;
       if (!proofIsFile) {
@@ -670,19 +791,26 @@
       orderRecord.paymentProof = paymentProof;
     }
 
+    orderRecord.hasPaymentProof = Boolean(paymentProof);
+
     setSubmittingState(form, true);
     showOrderAlert('Sending your order to our coordination team…', 'info');
 
     try {
       await submitOrderToApi(orderRecord);
-      saveOrder(orderRecord);
-      lastConfirmedOrder = orderRecord;
+      const storedOrder = { ...orderRecord };
+      if (storedOrder.paymentProof) {
+        delete storedOrder.paymentProof;
+      }
+      storedOrder.hasPaymentProof = orderRecord.hasPaymentProof;
+      saveOrder(storedOrder);
+      lastConfirmedOrder = storedOrder;
       showOrderAlert('', 'success');
       window.cart.clear();
       form.reset();
       updatePaymentGuidance();
       renderSummary();
-      showConfirmation(orderRecord);
+      showConfirmation(storedOrder);
     } catch (error) {
       console.error('Failed to send order', error);
       const fallbackMessage = 'We could not submit your order right now. Please try again or call +263 78 721 7911.';
@@ -695,10 +823,15 @@
       showOrderAlert(message, 'error');
     } finally {
       setSubmittingState(form, false);
+      resetSecurityCheck();
+      updateSecurityCheckVisibility();
     }
   }
 
   document.addEventListener('DOMContentLoaded', () => {
+    renderTurnstileWidget();
+    updateSecurityCheckVisibility();
+
     if (!window.cart) return;
     renderSummary();
 

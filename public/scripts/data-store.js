@@ -330,6 +330,14 @@
     return true;
   }
 
+  function clearDrafts() {
+    const drafts = customProducts.filter((item) => item.mode === 'draft');
+    if (!drafts.length) return 0;
+    const next = customProducts.filter((item) => item.mode !== 'draft');
+    persistCustomProducts(next);
+    return drafts.length;
+  }
+
   function removeCatalogueOverride(catalogueId) {
     if (!catalogueId) return false;
     const next = customProducts.filter(
@@ -550,6 +558,7 @@
     subscribe,
     generateProductId,
     normalizeImageSource,
+    clearDrafts,
     toJSON: () => getCustomProducts(true),
   };
 

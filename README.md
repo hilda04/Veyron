@@ -76,7 +76,7 @@ Deploy the stack with `sam build && sam deploy --guided`, then paste the emitted
 1. Browse **Furniture** or **Groceries**, search/filter items, and add quantities (1–10) to the cart.
 2. Open the cart drawer to review, adjust quantities or remove items. Totals update instantly.
 3. Click **Submit Order** to move to `order.html` where the customer confirms contact information, delivery schedule and payment preference.
-4. Press **Place Order** to launch a pre-filled email to `hildamachando4@gmail.com`. The admin team triages and updates the request from the private portal.
+4. Press **Place Order** to send the order (including proof of payment) straight to `support@veyronenterprises.com`. The admin team triages and updates the request from the private portal.
 
 ## Customisation Checklist
 
@@ -84,6 +84,7 @@ Deploy the stack with `sam build && sam deploy --guided`, then paste the emitted
 - **Copy:** update hero text, descriptions and support information in the HTML files to match current services.
 - **Catalogue:** maintain `public/data/*.json` for quick bulk updates, or wire the admin portal to your AWS API once live.
 - **Automation:** replace the mailto workflow in `public/scripts/order.js` with an API request (for example an AWS Lambda function) to send structured order data directly to your operations team.
+- **Security:** provision a Cloudflare Turnstile site key (`<meta name="turnstile-site-key">`) and secret so the storefront order form can validate submissions server-side.
 
 ## Next Steps
 

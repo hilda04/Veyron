@@ -1197,10 +1197,15 @@ textarea {
   padding: 0 1.5rem;
 }
 
+.order-confirmation .order-card {
+  text-align: left;
+}
+
 .confirmation-message {
   font-size: 1.2rem;
   font-weight: 500;
   color: var(--brand-primary);
+  text-align: center;
 }
 
 .confirmation-summary {
@@ -1218,6 +1223,7 @@ textarea {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 0.75rem 1.5rem;
   margin: 0;
+  text-align: left;
 }
 
 .confirmation-summary dt {
@@ -1233,6 +1239,7 @@ textarea {
 .confirmation-summary table {
   width: 100%;
   border-collapse: collapse;
+  text-align: left;
 }
 
 .confirmation-summary table th,
@@ -1258,11 +1265,24 @@ textarea {
   display: flex;
   flex-wrap: wrap;
   gap: 1rem;
+  justify-content: center;
 }
 
 .confirmation-actions .btn-outline {
   border-color: rgba(212, 175, 55, 0.35);
   color: var(--brand-primary);
+}
+
+.security-check[data-turnstile-block] {
+  display: block;
+}
+
+.security-check [data-turnstile] {
+  margin-top: 0.5rem;
+}
+
+.security-check .form-hint {
+  margin-top: 0.75rem;
 }
 
 .admin-section {
@@ -1821,6 +1841,30 @@ textarea {
 .inventory-sync {
   display: grid;
   gap: 0.75rem;
+}
+
+.inventory-secret {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.inventory-secret__clear {
+  font-weight: 500;
+  border-color: transparent;
+  background: transparent;
+  color: var(--brand-primary);
+}
+
+.inventory-secret .form-hint {
+  margin: 0;
+  flex-basis: 100%;
+}
+
+.inventory-secret__clear:hover,
+.inventory-secret__clear:focus {
+  text-decoration: underline;
 }
 
 .form-grid {

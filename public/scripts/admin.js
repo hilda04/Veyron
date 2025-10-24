@@ -517,7 +517,9 @@
           return Promise.resolve();
         }
         const url = urls[index];
-        return fetch(url)
+        const headers = buildAuthorisedHeaders(config);
+        const init = Object.keys(headers).length ? { headers } : {};
+        return fetch(url, init)
           .then((response) => {
             if (!response.ok) {
               throw new Error(`Request for ${category} failed with status ${response.status}`);
@@ -1513,6 +1515,15 @@
         if (removed) summaryParts.push(`${removed} item${removed === 1 ? '' : 's'} removed`);
         const summary = summaryParts.length ? ` (${summaryParts.join(', ')})` : '';
         setSyncFeedback(`Sync complete! DynamoDB now mirrors your dashboard changes${summary}.`, 'success');
+        if (window.productStore && typeof window.productStore.clearDrafts === 'function') {
+          const cleared = window.productStore.clearDrafts();
+          if (cleared) {
+            showInventoryFeedback(
+              `Cleared ${cleared} local draft${cleared === 1 ? '' : 's'} after syncing to DynamoDB.`,
+              'info'
+            );
+          }
+        }
       })
       .catch((error) => {
         console.error('Inventory sync failed', error);
@@ -1533,6 +1544,55 @@
           button.disabled = false;
         }
       });
+  }
+
+  function setupAdminSecretControls() {
+    const updateButton = document.querySelector('[data-admin-secret-button]');
+    if (!updateButton) return;
+    const clearButton = document.querySelector('[data-admin-secret-clear]');
+    const statusLabel = document.querySelector('[data-admin-secret-status]');
+
+    const getCurrentSecret = () =>
+      (window.adminApiConfig && window.adminApiConfig.adminSecret) || '';
+
+    const refresh = () => {
+      const current = getCurrentSecret();
+      updateButton.textContent = current ? 'Update admin access key' : 'Set admin access key';
+      if (statusLabel) {
+        statusLabel.textContent = current
+          ? 'Admin access key stored locally.'
+          : 'No admin access key stored.';
+      }
+      if (clearButton) {
+        clearButton.disabled = !current;
+      }
+    };
+
+    updateButton.addEventListener('click', () => {
+      const existing = getCurrentSecret();
+      const next = window.prompt(
+        'Enter the admin access key used to authenticate API requests (stored locally).',
+        existing
+      );
+      if (next === null) return;
+      if (typeof window.setAdminApiSecret === 'function') {
+        window.setAdminApiSecret(next);
+        refresh();
+        setSyncFeedback('Admin access key updated. Run sync again when ready.', 'info');
+      }
+    });
+
+    if (clearButton) {
+      clearButton.addEventListener('click', () => {
+        if (typeof window.setAdminApiSecret === 'function') {
+          window.setAdminApiSecret('');
+          refresh();
+          setSyncFeedback('Cleared the stored admin access key.', 'info');
+        }
+      });
+    }
+
+    refresh();
   }
 
   function setupInventorySync() {
@@ -1613,6 +1673,7 @@
       });
 
     setupInventoryForm();
+    setupAdminSecretControls();
     setupInventorySync();
 
     if (window.productStore && typeof window.productStore.subscribe === 'function') {

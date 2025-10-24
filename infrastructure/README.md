@@ -35,11 +35,16 @@ During the guided deploy you will be prompted for:
 - **AllowedOrigins** – comma separated origins allowed to call the API (for local testing you can use `http://localhost:3000`).
   Origins are normalised automatically so you can paste values with or without a trailing slash.
 - **SignedUrlExpiry** – validity window in seconds for generated S3 upload URLs (default 900 seconds).
-- **OrderRecipientEmail** – address that receives storefront order alerts (default `hildamachando4@gmail.com`). Ensure this
-  address is verified in SES if your account is still in the sandbox.
+- **OrderRecipientEmail** – address that receives storefront order alerts (default `support@veyronenterprises.com`). Ensure
+  this address is verified in SES if your account is still in the sandbox.
 - **OrderSenderEmail** – verified SES identity used as the "From" address for order notifications (default
-  `no-reply@veyron-enterprises.com`).
+  `no-reply@veyronenterprises.com`).
 - **OrderSendCustomerCopy** – set to `true` if you want customers to receive a CC of the order confirmation email.
+- **AdminSharedSecret** – shared secret required in the `X-Admin-Secret` header for all admin API requests. Leave blank to
+  disable the header check.
+- **TurnstileSecretKey** – Cloudflare Turnstile secret key used to validate storefront orders before they hit the Lambda.
+- **ThrottleMaxRequests** / **ThrottleWindowSeconds** – basic rate limiting controls (defaults allow five submissions per
+  minute per IP address).
 
 Once deployment completes, the command line output will display the `ApiUrl`, `ProductsTableName` and
 `ProductImagesBucketName` outputs. Record the API URL – you will paste it into `public/scripts/config.js`.
@@ -88,3 +93,6 @@ for local use. The file can look like this:
 | `POST /orders`                         | Accepts storefront orders and emails them to operations. |
 
 All endpoints return CORS headers so they can be called directly from the browser once `AllowedOrigins` is configured.
+
+> **Security:** `/orders` requires a valid Cloudflare Turnstile token and throttles repeated submissions. All `/products` and `/sync`
+> routes must include the `X-Admin-Secret` header when `AdminSharedSecret` is set.

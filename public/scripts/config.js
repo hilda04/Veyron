@@ -1,21 +1,21 @@
 (function () {
   const globalScope = typeof window !== 'undefined' ? window : globalThis;
 
-  // Where we can store/read a persisted value in the browser
   const STORAGE_KEY = 'veyron-admin-api-base-url';
-
-  // OPTIONAL: If you want a hard fallback, put it here; otherwise leave empty to force explicit config
+  const SECRET_STORAGE_KEY = 'veyron-admin-secret';
   const DEFAULT_BASE_URL = '';
 
   function normalizeUrl(value) {
     const trimmed = (value || '').toString().trim();
     if (!trimmed) return '';
-    // Ignore template placeholders like {{...}}
     if (/^\{\{.+\}\}$/.test(trimmed)) return '';
     return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed;
   }
 
-  // Read from a plain object that may hold env-like values
+  function normalizeSecret(value) {
+    return (value || '').toString().trim();
+  }
+
   function extractFromObject(source) {
     if (!source || typeof source !== 'object') return '';
     const value =
@@ -28,9 +28,31 @@
     return normalizeUrl(value);
   }
 
-  // Read from a meta tag in index.html: <meta name="api-base-url" content="https://...">
-  // (Also supports legacy name "vite-api-base-url")
-  function extractFromMeta() {
+  function extractSecretFromObject(source) {
+    if (!source || typeof source !== 'object') return '';
+    const value =
+      source.VITE_ADMIN_SECRET ||
+      source.NEXT_PUBLIC_ADMIN_SECRET ||
+      source.REACT_APP_ADMIN_SECRET ||
+      source.ADMIN_SHARED_SECRET ||
+      source.ADMIN_SECRET ||
+      source.adminSecret ||
+      source['x-admin-secret'];
+    return normalizeSecret(value);
+  }
+
+  function extractTurnstileKeyFromObject(source) {
+    if (!source || typeof source !== 'object') return '';
+    const value =
+      source.VITE_TURNSTILE_SITE_KEY ||
+      source.NEXT_PUBLIC_TURNSTILE_SITE_KEY ||
+      source.REACT_APP_TURNSTILE_SITE_KEY ||
+      source.TURNSTILE_SITE_KEY ||
+      source.turnstileSiteKey;
+    return normalizeSecret(value);
+  }
+
+  function extractMetaUrl() {
     if (typeof document === 'undefined') return '';
     const meta =
       document.querySelector('meta[name="api-base-url"]') ||
@@ -38,19 +60,50 @@
     if (!meta) return '';
     const direct = normalizeUrl(meta.getAttribute('content'));
     if (direct) return direct;
-    // Optional: <meta name="api-base-url" data-env-key="API_BASE_URL" data-api_base_url="...">
     const dataKey = meta.dataset ? meta.dataset.envKey || meta.dataset.env : '';
     if (!dataKey) return '';
     const candidate = meta.getAttribute(`data-${dataKey.toLowerCase()}`);
     return normalizeUrl(candidate);
   }
 
-  function extractStored() {
+  function extractMetaSecret() {
+    if (typeof document === 'undefined') return '';
+    const meta = document.querySelector('meta[name="admin-secret"]');
+    if (!meta) return '';
+    const content = normalizeSecret(meta.getAttribute('content'));
+    if (content) return content;
+    if (meta.dataset) {
+      return normalizeSecret(meta.dataset.secret || meta.dataset.adminSecret || '');
+    }
+    return '';
+  }
+
+  function extractMetaTurnstileKey() {
+    if (typeof document === 'undefined') return '';
+    const meta = document.querySelector('meta[name="turnstile-site-key"]');
+    if (!meta) return '';
+    const direct = normalizeSecret(meta.getAttribute('content'));
+    if (direct) return direct;
+    if (meta.dataset) {
+      return normalizeSecret(meta.dataset.siteKey || meta.dataset.key || '');
+    }
+    return '';
+  }
+
+  function extractStoredBaseUrl() {
     if (typeof localStorage === 'undefined') return '';
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      return normalizeUrl(stored);
-    } catch {
+      return normalizeUrl(localStorage.getItem(STORAGE_KEY));
+    } catch (error) {
+      return '';
+    }
+  }
+
+  function extractStoredSecret() {
+    if (typeof localStorage === 'undefined') return '';
+    try {
+      return normalizeSecret(localStorage.getItem(SECRET_STORAGE_KEY));
+    } catch (error) {
       return '';
     }
   }
@@ -58,42 +111,92 @@
   function persistBaseUrl(value) {
     if (typeof localStorage === 'undefined') return;
     try {
-      if (value) localStorage.setItem(STORAGE_KEY, value);
-      else localStorage.removeItem(STORAGE_KEY);
-    } catch {}
+      if (value) {
+        localStorage.setItem(STORAGE_KEY, value);
+      } else {
+        localStorage.removeItem(STORAGE_KEY);
+      }
+    } catch (error) {
+      // ignore storage failures
+    }
   }
 
-  // Candidate sources, in priority order
-  const existingConfig = globalScope.adminApiConfig || {};
-  const candidates = [
-    normalizeUrl(existingConfig.baseUrl),
+  function persistSecret(value) {
+    if (typeof localStorage === 'undefined') return;
+    try {
+      if (value) {
+        localStorage.setItem(SECRET_STORAGE_KEY, value);
+      } else {
+        localStorage.removeItem(SECRET_STORAGE_KEY);
+      }
+    } catch (error) {
+      // ignore storage failures
+    }
+  }
 
-    // Window-scoped env objects you might define at runtime
+  const existingConfig = globalScope.adminApiConfig || {};
+
+  const baseUrlCandidates = [
+    normalizeUrl(existingConfig.baseUrl),
     extractFromObject(globalScope.__env__),
     extractFromObject(globalScope.__ENV__),
     extractFromObject(globalScope.ENV),
     extractFromObject(globalScope.appConfig),
     extractFromObject(globalScope.siteConfig),
-
-    // Build-time env (only works if bundled)
     extractFromObject(typeof process !== 'undefined' ? process.env : null),
-
-    // Meta tag in index.html
-    extractFromMeta(),
-
-    // User override persisted in localStorage
-    extractStored(),
-
-    // LAST resort fallback (optional)
+    extractMetaUrl(),
+    extractStoredBaseUrl(),
     normalizeUrl(DEFAULT_BASE_URL),
   ].filter(Boolean);
 
-  const resolvedBaseUrl = candidates.length ? candidates[0] : '';
+  const resolvedBaseUrl = baseUrlCandidates.length ? baseUrlCandidates[0] : '';
 
-  // Persist if we found a new value
   if (resolvedBaseUrl && resolvedBaseUrl !== normalizeUrl(existingConfig.baseUrl)) {
     persistBaseUrl(resolvedBaseUrl);
   }
+
+  const existingSecret = normalizeSecret(
+    (existingConfig.extraHeaders && existingConfig.extraHeaders['X-Admin-Secret']) ||
+      existingConfig.adminSecret ||
+      ''
+  );
+
+  const secretCandidates = [
+    existingSecret,
+    extractSecretFromObject(globalScope.__env__),
+    extractSecretFromObject(globalScope.__ENV__),
+    extractSecretFromObject(globalScope.ENV),
+    extractSecretFromObject(globalScope.appConfig),
+    extractSecretFromObject(globalScope.siteConfig),
+    extractSecretFromObject(typeof process !== 'undefined' ? process.env : null),
+    extractMetaSecret(),
+    extractStoredSecret(),
+  ].filter(Boolean);
+
+  const resolvedSecret = secretCandidates.length ? secretCandidates[0] : '';
+
+  if (resolvedSecret && resolvedSecret !== existingSecret) {
+    persistSecret(resolvedSecret);
+  }
+
+  const existingSiteKey = normalizeSecret(
+    existingConfig.turnstileSiteKey ||
+      (globalScope.siteConfig && globalScope.siteConfig.turnstileSiteKey) ||
+      ''
+  );
+
+  const siteKeyCandidates = [
+    existingSiteKey,
+    extractTurnstileKeyFromObject(globalScope.__env__),
+    extractTurnstileKeyFromObject(globalScope.__ENV__),
+    extractTurnstileKeyFromObject(globalScope.ENV),
+    extractTurnstileKeyFromObject(globalScope.appConfig),
+    extractTurnstileKeyFromObject(globalScope.siteConfig),
+    extractTurnstileKeyFromObject(typeof process !== 'undefined' ? process.env : null),
+    extractMetaTurnstileKey(),
+  ].filter(Boolean);
+
+  const resolvedTurnstileSiteKey = siteKeyCandidates.length ? siteKeyCandidates[0] : '';
 
   const mergedConfig = {
     baseUrl: resolvedBaseUrl,
@@ -102,23 +205,47 @@
       existingConfig.extraHeaders && typeof existingConfig.extraHeaders === 'object'
         ? { ...existingConfig.extraHeaders }
         : {},
+    adminSecret: resolvedSecret,
+    turnstileSiteKey: resolvedTurnstileSiteKey,
   };
 
-  // Expose globally for app code
-  globalScope.adminApiConfig = mergedConfig;
-  globalScope.siteConfig = Object.assign({}, globalScope.siteConfig, { apiBaseUrl: resolvedBaseUrl });
+  if (resolvedSecret) {
+    mergedConfig.extraHeaders['X-Admin-Secret'] = resolvedSecret;
+  } else if (mergedConfig.extraHeaders['X-Admin-Secret']) {
+    delete mergedConfig.extraHeaders['X-Admin-Secret'];
+  }
 
-  // Also expose easy globals for debugging and simple apps
+  globalScope.adminApiConfig = mergedConfig;
+  globalScope.siteConfig = Object.assign({}, globalScope.siteConfig, {
+    apiBaseUrl: resolvedBaseUrl,
+    turnstileSiteKey: resolvedTurnstileSiteKey,
+  });
+
   globalScope.baseUrl = resolvedBaseUrl;
   globalScope.API_BASE_URL = resolvedBaseUrl;
 
-  // (Optional) nudge in console if still unset
+  function setAdminApiSecret(nextSecret) {
+    const normalised = normalizeSecret(nextSecret);
+    persistSecret(normalised);
+    const updatedHeaders = Object.assign({}, globalScope.adminApiConfig.extraHeaders || {});
+    if (normalised) {
+      updatedHeaders['X-Admin-Secret'] = normalised;
+    } else {
+      delete updatedHeaders['X-Admin-Secret'];
+    }
+    globalScope.adminApiConfig = Object.assign({}, globalScope.adminApiConfig, {
+      extraHeaders: updatedHeaders,
+      adminSecret: normalised,
+    });
+  }
+
+  globalScope.setAdminApiSecret = setAdminApiSecret;
+
   if (!resolvedBaseUrl) {
-    // eslint-disable-next-line no-console
     console.warn(
       '[veyron-admin] API base URL not set. Define it via meta tag <meta name="api-base-url" content="https://...">, ' +
-      'window.__env__ = { API_BASE_URL: "https://..." }, localStorage key "veyron-admin-api-base-url", ' +
-      'or a build-time env (VITE_/REACT_APP_/NEXT_PUBLIC_).'
+        'window.__env__ = { API_BASE_URL: "https://..." }, localStorage key "veyron-admin-api-base-url", ' +
+        'or a build-time env (VITE_/REACT_APP_/NEXT_PUBLIC_).'
     );
   }
 })();
