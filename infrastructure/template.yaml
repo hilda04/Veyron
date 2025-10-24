@@ -37,7 +37,7 @@ Parameters:
     Description: Email address that receives storefront order notifications.
   OrderSenderEmail:
     Type: String
-    Default: no-reply@veyron-enterprises.com
+    Default: no-reply@veyronenterprises.com
     Description: Verified Amazon SES identity used to send storefront order notifications.
   OrderSendCustomerCopy:
     Type: String
