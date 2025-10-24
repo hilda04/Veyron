@@ -8,6 +8,7 @@
       name="description"
       content="Confirm your Veyron Enterprises order by providing contact details, delivery timing and payment preferences."
     />
+    <meta name="turnstile-site-key" content="" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -132,12 +133,18 @@
                 <input type="file" id="paymentProof" name="paymentProof" accept="image/*,.pdf" />
                 <p class="form-hint">
                   Please make your payment via the selected method, attach your proof of payment and we will forward it to
-                  <a href="mailto:no-reply@veyronenterprises.com">no-reply@veyronenterprises.com</a> with your order details.
+                  <a href="mailto:support@veyronenterprises.com">support@veyronenterprises.com</a> with your order
+                  details.
                 </p>
               </div>
               <div class="form-group">
                 <label for="deliveryNotes">Delivery Notes</label>
                 <textarea id="deliveryNotes" name="deliveryNotes" placeholder="Gate codes, special instructions or dietary notes"></textarea>
+              </div>
+              <div class="form-group security-check" data-turnstile-block hidden>
+                <label>Security Check *</label>
+                <div data-turnstile></div>
+                <p class="form-hint">Complete the security check so we can securely submit your order.</p>
               </div>
             </div>
             <div class="notice">
@@ -199,7 +206,7 @@
           <div>
             <h4>Contact</h4>
             <p>Phone: <a href="tel:+263787217911">+263 78 721 7911</a></p>
-            <p>Email: <a href="mailto:hildamachando4@gmail.com">hildamachando4@gmail.com</a></p>
+            <p>Email: <a href="mailto:support@veyronenterprises.com">support@veyronenterprises.com</a></p>
             <p>Shop 106 Longcheng Plaza, Belvedere, Harare</p>
           </div>
           <div>
@@ -226,5 +233,6 @@
     <script src="scripts/common.js"></script>
     <script src="scripts/cart.js"></script>
     <script src="scripts/order.js"></script>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
   </body>
 </html>

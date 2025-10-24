@@ -9,6 +9,7 @@ const TABLE_NAME = process.env.TABLE_NAME;
 const BUCKET_NAME = process.env.BUCKET_NAME;
 const URL_EXPIRY_SECONDS = Number(process.env.URL_EXPIRY_SECONDS || 900);
 const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS || '*';
+const ADMIN_SHARED_SECRET = (process.env.ADMIN_SHARED_SECRET || process.env.ADMIN_SECRET || '').toString().trim();
 
 function normalizeOrigin(value) {
   if (!value) return '';
@@ -37,12 +38,35 @@ function createResponse(statusCode, body, headers = {}, origin) {
     headers: {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': resolveOrigin(origin),
-      'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Api-Key',
+      'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Api-Key,X-Admin-Secret',
       'Access-Control-Allow-Methods': 'OPTIONS,GET,POST,PUT,DELETE',
       ...headers,
     },
     body: JSON.stringify(body),
   };
+}
+
+function getHeader(event, name) {
+  const headers = event.headers || {};
+  const target = name.toLowerCase();
+  for (const key of Object.keys(headers)) {
+    if (key.toLowerCase() === target) {
+      return headers[key];
+    }
+  }
+  return '';
+}
+
+function requireAdmin(event) {
+  if (!ADMIN_SHARED_SECRET) {
+    return;
+  }
+  const provided = (getHeader(event, 'x-admin-secret') || '').toString().trim();
+  if (!provided || provided !== ADMIN_SHARED_SECRET) {
+    const error = new Error('Admin authorisation required.');
+    error.statusCode = 401;
+    throw error;
+  }
 }
 
 function parseJsonBody(event) {
@@ -118,6 +142,8 @@ async function batchWriteDelete(keys) {
 async function handleSync(event, origin) {
   if (!TABLE_NAME) throw new Error('TABLE_NAME environment variable is not configured.');
 
+  requireAdmin(event);
+
   const payload = parseJsonBody(event);
   const published = Array.isArray(payload.published) ? payload.published : [];
   const overrides = Array.isArray(payload.overrides) ? payload.overrides : [];
@@ -173,6 +199,7 @@ async function handleSync(event, origin) {
 
 async function handleList(event, origin) {
   if (!TABLE_NAME) throw new Error('TABLE_NAME environment variable is not configured.');
+  requireAdmin(event);
   const params = event.queryStringParameters || {};
   const category = sanitizeCategory(params.category);
 
@@ -201,6 +228,7 @@ async function handleList(event, origin) {
 
 async function handleGet(event, origin) {
   if (!TABLE_NAME) throw new Error('TABLE_NAME environment variable is not configured.');
+  requireAdmin(event);
   const category = sanitizeCategory(event.pathParameters?.category);
   const id = sanitizeId(event.pathParameters?.id);
   if (!category || !id) return createResponse(400, { message: 'Both category and id are required.' }, {}, origin);
@@ -214,6 +242,7 @@ async function handleGet(event, origin) {
 
 async function handlePut(event, origin) {
   if (!TABLE_NAME) throw new Error('TABLE_NAME environment variable is not configured.');
+  requireAdmin(event);
   const category = sanitizeCategory(event.pathParameters?.category);
   const id = sanitizeId(event.pathParameters?.id);
   if (!category || !id) return createResponse(400, { message: 'Both category and id are required.' }, {}, origin);
@@ -228,6 +257,7 @@ async function handlePut(event, origin) {
 
 async function handleDelete(event, origin) {
   if (!TABLE_NAME) throw new Error('TABLE_NAME environment variable is not configured.');
+  requireAdmin(event);
   const category = sanitizeCategory(event.pathParameters?.category);
   const id = sanitizeId(event.pathParameters?.id);
   if (!category || !id) return createResponse(400, { message: 'Both category and id are required.' }, {}, origin);
@@ -238,6 +268,7 @@ async function handleDelete(event, origin) {
 
 async function handleUploadUrl(event, origin) {
   if (!BUCKET_NAME) throw new Error('BUCKET_NAME environment variable is not configured.');
+  requireAdmin(event);
   const category = sanitizeCategory(event.pathParameters?.category);
   const id = sanitizeId(event.pathParameters?.id);
   if (!category || !id) return createResponse(400, { message: 'Both category and id are required.' }, {}, origin);
@@ -262,8 +293,8 @@ async function handleUploadUrl(event, origin) {
 }
 
 exports.handler = async (event) => {
+  const origin = event.headers?.origin || event.headers?.Origin || '';
   try {
-    const origin = event.headers?.origin || event.headers?.Origin || '';
     const routeKey = `${event.httpMethod || ''} ${event.resource || event.path}`.trim();
     switch (routeKey) {
       case 'OPTIONS /sync':
@@ -288,6 +319,11 @@ exports.handler = async (event) => {
     }
   } catch (error) {
     console.error('Admin API error', error);
-    return createResponse(500, { message: 'Internal server error.', detail: error.message }, {}, event.headers?.origin || event.headers?.Origin || '');
+    const statusCode = error.statusCode || 500;
+    const responseBody =
+      statusCode === 401 || statusCode === 403
+        ? { message: error.message || 'Admin authorisation required.' }
+        : { message: 'Internal server error.', detail: error.message };
+    return createResponse(statusCode, responseBody, {}, origin);
   }
 };
