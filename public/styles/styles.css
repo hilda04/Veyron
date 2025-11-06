@@ -1477,6 +1477,95 @@ textarea {
   background: #ffffff;
 }
 
+.admin-toolbar__clear {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.admin-toolbar__summary {
+  margin: 0 0 2rem;
+  font-size: 0.95rem;
+  color: var(--text-muted);
+}
+
+.admin-metrics {
+  display: grid;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+@media (min-width: 720px) {
+  .admin-metrics {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  }
+}
+
+.admin-metric {
+  background: rgba(255, 255, 255, 0.96);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(212, 175, 55, 0.22);
+  padding: 1.1rem 1.35rem;
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.08);
+  display: grid;
+  gap: 0.35rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.admin-metric::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.2;
+  pointer-events: none;
+}
+
+.admin-metric__label {
+  margin: 0;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.admin-metric__value {
+  margin: 0;
+  font-size: 1.85rem;
+  font-weight: 600;
+  color: var(--brand-primary);
+}
+
+.admin-metric--open {
+  border-left: 4px solid var(--brand-secondary);
+}
+
+.admin-metric--open::after {
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.3), transparent 65%);
+}
+
+.admin-metric--progress {
+  border-left: 4px solid rgba(44, 120, 201, 0.75);
+}
+
+.admin-metric--progress::after {
+  background: linear-gradient(135deg, rgba(44, 120, 201, 0.25), transparent 65%);
+}
+
+.admin-metric--completed {
+  border-left: 4px solid rgba(17, 17, 17, 0.75);
+}
+
+.admin-metric--completed::after {
+  background: linear-gradient(135deg, rgba(17, 17, 17, 0.25), transparent 65%);
+}
+
+.admin-metrics__meta {
+  margin: 0 0 1.5rem;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
 .admin-tabs {
   display: inline-flex;
   gap: 0.75rem;
@@ -1679,6 +1768,37 @@ textarea {
   font-size: 1rem;
   font-family: inherit;
   background: #ffffff;
+}
+
+.inventory-toolbar select {
+  flex: 1 1 220px;
+  padding: 0.7rem 1rem;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  font-size: 1rem;
+  font-family: inherit;
+  background: #ffffff;
+}
+
+.inventory-toolbar__controls {
+  display: flex;
+  flex: 1 1 400px;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.inventory-toolbar__details {
+  display: grid;
+  gap: 0.35rem;
+  flex: 1 1 220px;
+  min-width: 220px;
+}
+
+.inventory-toolbar__summary {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--brand-primary);
 }
 
 .inventory-toolbar__hint {
@@ -1897,6 +2017,12 @@ textarea {
   border: 1px solid rgba(212, 175, 55, 0.22);
   display: grid;
   gap: 1.5rem;
+}
+
+.inventory-form-card.is-editing {
+  border-color: rgba(44, 120, 201, 0.45);
+  box-shadow: 0 28px 60px rgba(44, 120, 201, 0.12);
+  transition: box-shadow 0.3s ease, border-color 0.3s ease;
 }
 
 .inventory-form-card h3 {
