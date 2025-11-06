@@ -9,6 +9,8 @@
       name="description"
       content="Internal order dashboard for Veyron Enterprises to review, triage and complete customer requests."
     />
+    <link rel="icon" type="image/svg+xml" href="assets/logo.svg" />
+    <link rel="apple-touch-icon" href="assets/logo.jpg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -79,14 +81,46 @@
         aria-labelledby="orders-tab"
       >
         <div class="admin-toolbar">
-          <input type="search" placeholder="Search by customer or product" aria-label="Search orders" data-admin-search />
+          <input
+            type="search"
+            placeholder="Search by customer or product"
+            aria-label="Search orders"
+            data-admin-search
+          />
           <select aria-label="Filter orders by status" data-status-filter>
             <option value="all">All statuses</option>
             <option value="Open">Open</option>
             <option value="In Progress">In Progress</option>
             <option value="Completed">Completed</option>
           </select>
+          <button type="button" class="btn btn-outline admin-toolbar__clear" data-order-clear>
+            Reset filters
+          </button>
         </div>
+        <div class="admin-metrics" data-order-metrics>
+          <article class="admin-metric">
+            <span class="admin-metric__label">Total orders</span>
+            <span class="admin-metric__value" data-metric="total">0</span>
+          </article>
+          <article class="admin-metric admin-metric--open">
+            <span class="admin-metric__label">Open</span>
+            <span class="admin-metric__value" data-metric="Open">0</span>
+          </article>
+          <article class="admin-metric admin-metric--progress">
+            <span class="admin-metric__label">In Progress</span>
+            <span class="admin-metric__value" data-metric="In Progress">0</span>
+          </article>
+          <article class="admin-metric admin-metric--completed">
+            <span class="admin-metric__label">Completed</span>
+            <span class="admin-metric__value" data-metric="Completed">0</span>
+          </article>
+        </div>
+        <p class="admin-metrics__meta" data-order-last-update aria-live="polite">
+          No orders captured yet.
+        </p>
+        <p class="admin-toolbar__summary" data-order-summary-text aria-live="polite">
+          Orders will appear here once received.
+        </p>
         <div class="admin-board" data-order-board>
           <div class="product-empty">No orders captured yet. New submissions will appear here automatically.</div>
         </div>
@@ -110,13 +144,27 @@
         </div>
 
         <div class="inventory-toolbar">
-          <input
-            type="search"
-            placeholder="Search inventory"
-            aria-label="Search inventory"
-            data-inventory-search
-          />
-          <p class="inventory-toolbar__hint">Showing five items at a time. Scroll to reveal more results.</p>
+          <div class="inventory-toolbar__controls">
+            <input
+              type="search"
+              placeholder="Search inventory"
+              aria-label="Search inventory"
+              data-inventory-search
+            />
+            <select aria-label="Filter inventory by status" data-inventory-status-filter>
+              <option value="all">All catalogue items</option>
+              <option value="catalogue">Published only</option>
+              <option value="draft">Drafts</option>
+              <option value="override">Local overrides</option>
+              <option value="hidden">Hidden items</option>
+            </select>
+          </div>
+          <div class="inventory-toolbar__details">
+            <p class="inventory-toolbar__summary" data-inventory-summary aria-live="polite">
+              Loading catalogue…
+            </p>
+            <p class="inventory-toolbar__hint">Showing five items at a time. Scroll to reveal more results.</p>
+          </div>
         </div>
 
         <div class="inventory-panels">
